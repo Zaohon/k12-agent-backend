@@ -1,0 +1,118 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// 组织架构/学校级别
+model Organization {
+  id          Int      @id @default(autoincrement())
+  orgName     String   @unique
+  contactInfo String?
+  status      String   @default("ACTIVE")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  users       User[]
+  agents      Agent[]
+}
+
+// 用户模块
+model User {
+  id             Int      @id @default(autoincrement())
+  username       String   @unique
+  passwordHash   String
+  role           String   @default("TEACHER") // ENUM workaround for SQLite: SUPER_ADMIN, SCHOOL_ADMIN, TEACHER, STUDENT
+  orgId          Int?
+  tokenLimit     Int      @default(50000) // 分配的总额度
+  consumedToken  Int      @default(0)     // 已消耗额度
+  status         String   @default("ACTIVE")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization   Organization? @relation(fields: [orgId], references: [id])
+  createdAgents  Agent[]
+  conversations  Conversation[]
+}
+
+// 智能体应用配置
+model Agent {
+  id             Int      @id @default(autoincrement())
+  title          String
+  description    String?  
+  iconUrl        String?
+  systemPrompt   String   
+  welcomeMsg     String?  
+  formConfig     String?  // JSON string representing the required/optional input fields
+  
+  creatorId      Int
+  orgId          Int?
+  
+  visibility     String   @default("PRIVATE") // ENUM workaround: PRIVATE, ORG_VISIBLE, PUBLIC
+  approvalStatus String   @default("APPROVED") // ENUM workaround: PENDING, APPROVED, REJECTED
+  isFeatured     Boolean  @default(false)      // 是否推荐到首页
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  creator        User           @relation(fields: [creatorId], references: [id])
+  organization   Organization?  @relation(fields: [orgId], references: [id])
+  
+  conversations  Conversation[]
+  categories     AgentCategory[]
+}
+
+// 分类目录表 (后台可动态配置前端左侧的树)
+model Category {
+  id        Int      @id @default(autoincrement())
+  name      String
+  parentId  Int?
+  weight    Int      @default(0)
+  createdAt DateTime @default(now())
+
+  agents    AgentCategory[]
+}
+
+// 应用和目录的多对多关联表
+model AgentCategory {
+  agentId    Int
+  categoryId Int
+  
+  agent      Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([agentId, categoryId])
+}
+
+// 对话沙盒（房间）
+model Conversation {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  agentId   Int
+  topic     String?  // AI自动提取的核心主题
+  isDeleted Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User     @relation(fields: [userId], references: [id])
+  agent     Agent    @relation(fields: [agentId], references: [id])
+  messages  Message[]
+}
+
+// 历史上下文记录 (每一条气泡)
+model Message {
+  id               Int      @id @default(autoincrement())
+  convId           Int
+  role             String   // ENUM workaround: 'user', 'assistant', 'system'
+  content          String   
+  promptTokens     Int      @default(0)
+  completionTokens Int      @default(0)
+  createdAt        DateTime @default(now())
+
+  conversation     Conversation @relation(fields: [convId], references: [id], onDelete: Cascade)
+}

@@ -1,0 +1,18 @@
+import { Module } from '@nestjs/common';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { AgentModule } from './agent/agent.module';
+import { PrismaService } from './prisma.service';
+
+import { AuthModule } from './auth/auth.module';
+import { ChatModule } from './chat/chat.module';
+import { OrgModule } from './org/org.module';
+import { ApprovalModule } from './approval/approval.module';
+import { CategoryModule } from './category/category.module';
+
+@Module({
+  imports: [AgentModule, AuthModule, ChatModule, OrgModule, ApprovalModule, CategoryModule],
+  controllers: [AppController],
+  providers: [AppService, PrismaService],
+})
+export class AppModule {}
