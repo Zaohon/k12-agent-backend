@@ -66,4 +66,22 @@ export class AuthService {
 
     return this.login(user);
   }
+
+  async findFullUser(id: number) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      include: { organization: true }
+    });
+    if (!user) return null;
+    const { passwordHash, ...result } = user;
+    return result;
+  }
+
+  async updatePassword(userId: number, newPass: string) {
+    const hash = await bcrypt.hash(newPass, 10);
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash: hash }
+    });
+  }
 }

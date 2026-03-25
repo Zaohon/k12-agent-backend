@@ -104,7 +104,13 @@ export class ChatController {
        await this.prisma.message.create({
          data: { convId: sessionId, role: 'assistant', content: fullResponse }
        });
-       // Optional: Update session updatedAt
+       
+       const currentSession = await this.prisma.conversation.findUnique({ where: { id: sessionId } });
+       if (currentSession && currentSession.topic === '新对话') {
+          // Trigger title generation in background
+          this.generateTopic(sessionId, body.prompt, fullResponse).catch(e => console.error('Topic gen error', e));
+       }
+
        await this.prisma.conversation.update({ 
          where: { id: sessionId }, 
          data: { updatedAt: new Date() } 
@@ -112,6 +118,16 @@ export class ChatController {
     }
 
     res.end();
+  }
+
+  private async generateTopic(sessionId: number, userMsg: string, aiMsg: string) {
+    const summaryPrompt = `针对以下对话，总结出一个不超过10个字符的简短标题，不要包含标点符号或引号。对话内容： 用户：${userMsg}。 AI：${aiMsg}`;
+    const res = await (await this.callAI([{ role: 'user', content: summaryPrompt }], false)).json();
+    const topic = res.choices?.[0]?.message?.content?.trim() || '新对话';
+    await this.prisma.conversation.update({
+      where: { id: sessionId },
+      data: { topic }
+    });
   }
 
   private async callAI(messages: any[], stream = false) {

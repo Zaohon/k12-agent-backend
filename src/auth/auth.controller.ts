@@ -21,4 +21,18 @@ export class AuthController {
     }
     return this.authService.register(body);
   }
+
+  @UseGuards(require('../auth/jwt-auth.guard').JwtAuthGuard)
+  @Get('profile')
+  async getProfile(@Request() req: any) {
+    const user = await this.authService.findFullUser(req.user.id);
+    return { success: true, data: user };
+  }
+
+  @UseGuards(require('../auth/jwt-auth.guard').JwtAuthGuard)
+  @Post('update-password')
+  async updatePassword(@Request() req: any, @Body() body: any) {
+    await this.authService.updatePassword(req.user.id, body.newPassword);
+    return { success: true };
+  }
 }
