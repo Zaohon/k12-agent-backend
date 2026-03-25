@@ -9,9 +9,10 @@ import { ChatModule } from './chat/chat.module';
 import { OrgModule } from './org/org.module';
 import { ApprovalModule } from './approval/approval.module';
 import { CategoryModule } from './category/category.module';
+import { SessionModule } from './session/session.module';
 
 @Module({
-  imports: [AgentModule, AuthModule, ChatModule, OrgModule, ApprovalModule, CategoryModule],
+  imports: [AgentModule, AuthModule, ChatModule, OrgModule, ApprovalModule, CategoryModule, SessionModule],
   controllers: [AppController],
   providers: [AppService, PrismaService],
 })

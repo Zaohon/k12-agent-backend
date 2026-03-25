@@ -93,14 +93,14 @@ model AgentCategory {
 model Conversation {
   id        Int      @id @default(autoincrement())
   userId    Int
-  agentId   Int
+  agentId   Int?
   topic     String?  // AI自动提取的核心主题
   isDeleted Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   user      User     @relation(fields: [userId], references: [id])
-  agent     Agent    @relation(fields: [agentId], references: [id])
+  agent     Agent?    @relation(fields: [agentId], references: [id])
   messages  Message[]
 }
 
