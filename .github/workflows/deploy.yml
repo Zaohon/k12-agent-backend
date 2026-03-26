@@ -40,9 +40,11 @@ jobs:
                 ports:
                   - '3000:3000'
                 environment:
-                  - DATABASE_URL=file:./dev.db
+                  - DATABASE_URL=file:/app/prisma/dev.db
                   - ALIAI_KEY=sk-sp-4080f1e7e6cb4f578fa5ebfc0de8e31d
                   - JWT_SECRET=k12-secret-2026
+                volumes:
+                  - db-data:/app/prisma
                 restart: always
                 networks:
                   - k12-net
@@ -58,6 +60,8 @@ jobs:
             networks:
               k12-net:
                 driver: bridge
+            volumes:
+              db-data:
             EOF
             docker compose down backend || true
             docker compose up -d --build backend
