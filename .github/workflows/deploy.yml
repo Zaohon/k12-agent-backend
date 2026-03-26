@@ -26,12 +26,14 @@ jobs:
           host: ${{ secrets.REMOTE_IP }}
           username: ${{ secrets.REMOTE_USER }}
           password: ${{ secrets.REMOTE_PASSWORD }}
-          command_timeout: 30m
+          timeout: 40m
+          command_timeout: 40m
           script: |
             mkdir -p /root/K12AgentWeb/k12-agent-backend
             cd /root/K12AgentWeb
-            # Force update docker-compose.yml
-            echo "version: '3.8'
+            # Force update docker-compose.yml with robust heredoc
+            cat << 'EOF' > docker-compose.yml
+            version: '3.8'
             services:
               backend:
                 build: ./k12-agent-backend
@@ -55,6 +57,7 @@ jobs:
                   - k12-net
             networks:
               k12-net:
-                driver: bridge" > docker-compose.yml
-            docker compose down backend
+                driver: bridge
+            EOF
+            docker compose down backend || true
             docker compose up -d --build backend
