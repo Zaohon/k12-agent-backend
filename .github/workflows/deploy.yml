@@ -26,6 +26,7 @@ jobs:
           host: ${{ secrets.REMOTE_IP }}
           username: ${{ secrets.REMOTE_USER }}
           password: ${{ secrets.REMOTE_PASSWORD }}
+          command_timeout: 30m
           script: |
             mkdir -p /root/K12AgentWeb/k12-agent-backend
             cd /root/K12AgentWeb
