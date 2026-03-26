@@ -22,20 +22,15 @@ jobs:
       with:
         node-version: ${{ matrix.node-version }}
         cache: 'npm'
-        cache-dependency-path: k12-agent-backend/package-lock.json
 
     - name: Install dependencies
       run: npm install
-      working-directory: k12-agent-backend
 
     - name: Generate Prisma Client
       run: npx prisma generate
-      working-directory: k12-agent-backend
 
     - name: Run Build
       run: npm run build
-      working-directory: k12-agent-backend
 
     - name: Run Tests
       run: npm test
-      working-directory: k12-agent-backend
