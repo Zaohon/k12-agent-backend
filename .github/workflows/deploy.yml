@@ -1,0 +1,59 @@
+name: Backend Production CD
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Copy code via SCP
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.REMOTE_IP }}
+          username: ${{ secrets.REMOTE_USER }}
+          password: ${{ secrets.REMOTE_PASSWORD }}
+          source: "."
+          target: "/root/K12AgentWeb/k12-agent-backend"
+          rm: true
+
+      - name: SSH Remote Command
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.REMOTE_IP }}
+          username: ${{ secrets.REMOTE_USER }}
+          password: ${{ secrets.REMOTE_PASSWORD }}
+          script: |
+            mkdir -p /root/K12AgentWeb/k12-agent-backend
+            cd /root/K12AgentWeb
+            # Force update docker-compose.yml
+            echo "version: '3.8'
+            services:
+              backend:
+                build: ./k12-agent-backend
+                ports:
+                  - '3000:3000'
+                environment:
+                  - DATABASE_URL=file:./prisma/dev.db
+                  - ALIAI_KEY=sk-sp-4080f1e7e6cb4f578fa5ebfc0de8e31d
+                  - JWT_SECRET=k12-secret-2026
+                restart: always
+                networks:
+                  - k12-net
+              frontend:
+                build: ./k12-agent-frontend
+                ports:
+                  - '80:80'
+                depends_on:
+                  - backend
+                restart: always
+                networks:
+                  - k12-net
+            networks:
+              k12-net:
+                driver: bridge" > docker-compose.yml
+            docker compose down backend
+            docker compose up -d --build backend
