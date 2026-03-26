@@ -56,4 +56,10 @@ jobs:
             cd /root/K12AgentWeb
             docker compose pull backend
             docker compose up -d
+            echo "=== Waiting 20s for backend to start... ==="
+            sleep 20
+            echo "=== Container Status ==="
+            docker compose ps
+            echo "=== Backend Logs (last 50 lines) ==="
+            docker compose logs backend --tail=50
 
