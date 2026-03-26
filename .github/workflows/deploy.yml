@@ -28,11 +28,22 @@ jobs:
           push: true
           tags: ghcr.io/zaohon/k12-agent-backend:latest
 
-  # ─── Step 2: SSH to server → update docker-compose → pull → restart ───
+  # ─── Step 2: Upload docker-compose.yml, then SSH to pull & restart ───
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+
+      - name: Upload docker-compose.yml via SCP
+        uses: appleboy/scp-action@master
+        with:
+          host: ${{ secrets.REMOTE_IP }}
+          username: ${{ secrets.REMOTE_USER }}
+          password: ${{ secrets.REMOTE_PASSWORD }}
+          source: "docker-compose.yml"
+          target: "/root/K12AgentWeb"
+
       - name: SSH Remote Deploy
         uses: appleboy/ssh-action@master
         with:
@@ -42,42 +53,7 @@ jobs:
           timeout: 5m
           command_timeout: 5m
           script: |
-            mkdir -p /root/K12AgentWeb
             cd /root/K12AgentWeb
-
-            # Write docker-compose.yml using pre-built images (no build on server)
-            cat << 'EOF' > docker-compose.yml
-            version: '3.8'
-            services:
-              backend:
-                image: ghcr.io/zaohon/k12-agent-backend:latest
-                ports:
-                  - '3000:3000'
-                environment:
-                  - DATABASE_URL=file:/app/prisma/dev.db
-                  - ALIAI_KEY=sk-sp-4080f1e7e6cb4f578fa5ebfc0de8e31d
-                  - JWT_SECRET=k12-secret-2026
-                volumes:
-                  - db-data:/app/prisma
-                restart: always
-                networks:
-                  - k12-net
-              frontend:
-                image: ghcr.io/zaohon/k12-agent-frontend:latest
-                ports:
-                  - '80:80'
-                depends_on:
-                  - backend
-                restart: always
-                networks:
-                  - k12-net
-            networks:
-              k12-net:
-                driver: bridge
-            volumes:
-              db-data:
-            EOF
-
             docker pull ghcr.io/zaohon/k12-agent-backend:latest
             docker compose down backend || true
             docker compose up -d backend
