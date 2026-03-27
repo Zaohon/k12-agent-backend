@@ -20,8 +20,8 @@ export class ChatController {
   ) {
     // 0. Quota Check
     const user = await this.prisma.user.findUnique({ where: { id: req.user.id } });
-    if (user.consumedToken >= user.tokenLimit) {
-       throw new ForbiddenException('您的 Token 额度已耗尽，请联系管理员充值。');
+    if (!user || user.consumedToken >= user.tokenLimit) {
+       throw new ForbiddenException('您的 Token 额度已耗尽，或账号状态异常。');
     }
 
     const agent = await this.prisma.agent.findUnique({ where: { id: agentId } });
@@ -86,8 +86,8 @@ export class ChatController {
 
     // 0. Quota Check
     const user = await this.prisma.user.findUnique({ where: { id: req.user.id } });
-    if (user.consumedToken >= user.tokenLimit) {
-       throw new ForbiddenException('您的 Token 额度已耗尽，请联系管理员充值。');
+    if (!user || user.consumedToken >= user.tokenLimit) {
+       throw new ForbiddenException('您的 Token 额度已耗尽，或账号状态异常。');
     }
 
     // 1. Fetch history (last 10 messages)
