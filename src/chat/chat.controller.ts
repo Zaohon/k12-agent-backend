@@ -18,6 +18,12 @@ export class ChatController {
     @Body() body: any,
     @Res() res: Response
   ) {
+    // 0. Quota Check
+    const user = await this.prisma.user.findUnique({ where: { id: req.user.id } });
+    if (user.consumedToken >= user.tokenLimit) {
+       throw new ForbiddenException('您的 Token 额度已耗尽，请联系管理员充值。');
+    }
+
     const agent = await this.prisma.agent.findUnique({ where: { id: agentId } });
     if (!agent) throw new NotFoundException('Agent not found');
 
@@ -34,9 +40,33 @@ export class ChatController {
     const aiRes = await this.callAI([{ role: 'user', content: prompt }], true);
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
-    if (aiRes.body) {
-      // @ts-ignore
-      for await (const chunk of aiRes.body) res.write(chunk);
+    
+    let fullResponse = '';
+    if (aiRes.ok && aiRes.body) {
+       // @ts-ignore
+       for await (const chunk of aiRes.body) {
+          const decoder = new TextDecoder();
+          const str = decoder.decode(chunk);
+          try {
+             const lines = str.split('\n');
+             for(let line of lines) {
+                 if (line.startsWith('data:')) {
+                    const data = JSON.parse(line.slice(5));
+                    fullResponse += data.choices?.[0]?.delta?.content || '';
+                 }
+             }
+          } catch(e) {}
+          res.write(chunk);
+       }
+       
+       // Deduct tokens roughly
+       const consumed = prompt.length + fullResponse.length;
+       await this.prisma.user.update({
+          where: { id: req.user.id },
+          data: { consumedToken: { increment: consumed } }
+       });
+    } else {
+       res.write('data: {"error": "AI Service Error"}\n\n');
     }
     res.end();
   }
@@ -53,6 +83,12 @@ export class ChatController {
   ) {
     const session = await this.prisma.conversation.findUnique({ where: { id: sessionId } });
     if (!session || session.userId !== req.user.id) throw new ForbiddenException();
+
+    // 0. Quota Check
+    const user = await this.prisma.user.findUnique({ where: { id: req.user.id } });
+    if (user.consumedToken >= user.tokenLimit) {
+       throw new ForbiddenException('您的 Token 额度已耗尽，请联系管理员充值。');
+    }
 
     // 1. Fetch history (last 10 messages)
     const history = await this.prisma.message.findMany({
@@ -105,6 +141,13 @@ export class ChatController {
          data: { convId: sessionId, role: 'assistant', content: fullResponse }
        });
        
+       // Deduct tokens
+       const consumed = body.prompt.length + fullResponse.length;
+       await this.prisma.user.update({
+         where: { id: req.user.id },
+         data: { consumedToken: { increment: consumed } }
+       });
+
        const currentSession = await this.prisma.conversation.findUnique({ where: { id: sessionId } });
        if (currentSession && currentSession.topic === '新对话') {
           // Trigger title generation in background
@@ -131,14 +174,15 @@ export class ChatController {
   }
 
   private async callAI(messages: any[], stream = false) {
-    return fetch('https://coding.dashscope.aliyuncs.com/v1/chat/completions', {
+    const apiKey = process.env.AI_API_KEY || 'sk-sp-4080f1e7e6cb4f578fa5ebfc0de8e31d';
+    return fetch('https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer sk-sp-4080f1e7e6cb4f578fa5ebfc0de8e31d`,
+        'Authorization': `Bearer ${apiKey}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model: 'qwen3.5-plus',
+        model: 'qwen-plus',
         messages,
         stream
       })

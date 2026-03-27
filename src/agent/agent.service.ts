@@ -187,30 +187,43 @@ export class AgentService implements OnModuleInit {
    * Based on PRD: Default visibility is strictly enforced.
    */
   async createAgent(user: { id: number, orgId?: number, role: string }, data: any) {
-    const isPublic = data.visibility !== 'PRIVATE';
+    const { categoryId, ...cleanData } = data;
+    const isPublic = cleanData.visibility !== 'PRIVATE';
     const autoApprove = user.role === 'SUPER_ADMIN';
 
     return this.prisma.agent.create({
       data: {
-        ...data,
+        ...cleanData,
         creatorId: user.id,
         orgId: user.orgId,
-        approvalStatus: isPublic && !autoApprove ? 'PENDING' : 'APPROVED'
+        approvalStatus: isPublic && !autoApprove ? 'PENDING' : 'APPROVED',
+        categories: categoryId ? {
+          create: { categoryId: parseInt(categoryId) }
+        } : undefined
       }
     });
   }
 
   async updateAgent(id: number, data: any) {
+    const { categoryId, ...cleanData } = data;
     // Basic backend protection for status downgrade if visibility gets elevated
-    if (data.visibility === 'PUBLIC' || data.visibility === 'ORG_VISIBLE') {
-      data.approvalStatus = 'PENDING';
-    } else if (data.visibility === 'PRIVATE') {
-      data.approvalStatus = 'APPROVED';
+    if (cleanData.visibility === 'PUBLIC' || cleanData.visibility === 'ORG_VISIBLE') {
+      cleanData.approvalStatus = 'PENDING';
+    } else if (cleanData.visibility === 'PRIVATE') {
+      cleanData.approvalStatus = 'APPROVED';
     }
     
+    // If categoryId is provided, we sync it (assuming single category for now for MVP simplicity)
+    if (categoryId) {
+       await this.prisma.agentCategory.deleteMany({ where: { agentId: id } });
+       await this.prisma.agentCategory.create({
+          data: { agentId: id, categoryId: parseInt(categoryId) }
+       });
+    }
+
     return this.prisma.agent.update({
       where: { id },
-      data
+      data: cleanData
     });
   }
 

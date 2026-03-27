@@ -50,16 +50,19 @@ jobs:
           host: ${{ secrets.REMOTE_IP }}
           username: ${{ secrets.REMOTE_USER }}
           password: ${{ secrets.REMOTE_PASSWORD }}
-          timeout: 5m
-          command_timeout: 5m
+          timeout: 10m
+          command_timeout: 10m
           script: |
             cd /root/K12AgentWeb
+            echo "=== Cleaning up old containers ==="
+            docker compose down --remove-orphans || true
+            echo "=== Pulling latest backend image ==="
             docker compose pull backend
+            echo "=== Starting all services ==="
             docker compose up -d
-            echo "=== Waiting 20s for backend to start... ==="
-            sleep 20
             echo "=== Container Status ==="
             docker compose ps
             echo "=== Backend Logs (last 50 lines) ==="
             docker compose logs backend --tail=50
+
 
