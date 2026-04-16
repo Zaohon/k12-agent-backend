@@ -1,15 +1,30 @@
 version: '3.8'
 services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=k12_agent
+      - MYSQL_USER=k12
+      - MYSQL_PASSWORD=k12pass
+    ports:
+      - '3306:3306'
+    command: --default-authentication-plugin=mysql_native_password
+    volumes:
+      - mysql-data:/var/lib/mysql
+    restart: always
+    networks:
+      - k12-net
   backend:
     image: ghcr.io/zaohon/k12-agent-backend:latest
     ports:
       - '3000:3000'
     environment:
-      - DATABASE_URL=file:/app/prisma/dev.db
+      - DATABASE_URL=mysql://k12:k12pass@mysql:3306/k12_agent
       - ALIAI_KEY=sk-sp-4080f1e7e6cb4f578fa5ebfc0de8e31d
       - JWT_SECRET=k12-secret-2026
-    volumes:
-      - db-data:/app/prisma
+    depends_on:
+      - mysql
     restart: always
     networks:
       - k12-net
@@ -26,4 +41,4 @@ networks:
   k12-net:
     driver: bridge
 volumes:
-  db-data:
+  mysql-data:

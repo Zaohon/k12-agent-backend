@@ -21,7 +21,3 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-
-# db
-/prisma/dev.db
-/prisma/dev.db-journal

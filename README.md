@@ -14,7 +14,7 @@
 ## 🛠️ 技术栈
 
 *   **框架**：[NestJS](https://nestjs.com/)
-*   **数据库**：[SQLite](https://sqlite.org/index.html) (初期本地存储)
+*   **数据库**：[MySQL](https://www.mysql.com/)
 *   **ORM**：[Prisma](https://www.prisma.io/)
 *   **安全**：JWT (Passport), Argon2/Bcrypt hash
 *   **报表解析**：XLSX
@@ -30,7 +30,7 @@ npm install
 ```
 
 ### 3. 数据库初始化
-同步 Prisma Schema 到本地 SQLite 数据库：
+同步 Prisma Schema 到本地 MySQL 数据库：
 ```bash
 npx prisma db push
 ```
@@ -44,7 +44,7 @@ npm run start:dev
 ## 🐳 环境变量说明
 在根目录创建 `.env` 文件：
 ```env
-DATABASE_URL="file:./dev.db"
+DATABASE_URL="mysql://k12:k12pass@127.0.0.1:3306/k12_agent"
 JWT_SECRET="k12-agent-secret"
 ALIAI_KEY="sk-sp-4080f1e7e6cb4f578fa5ebfc0de8e31d"
 ```

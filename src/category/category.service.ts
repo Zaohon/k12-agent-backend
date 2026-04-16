@@ -24,6 +24,7 @@ export class CategoryService implements OnModuleInit {
 
   async list() {
     return this.prisma.category.findMany({
+      where: { deletedAt: null },
       orderBy: { weight: 'desc' }
     });
   }
@@ -37,6 +38,12 @@ export class CategoryService implements OnModuleInit {
   }
 
   async delete(id: number) {
-    return this.prisma.category.delete({ where: { id } });
+    return this.prisma.category.update({
+      where: { id },
+      data: {
+        status: 'DELETED',
+        deletedAt: new Date(),
+      },
+    });
   }
 }

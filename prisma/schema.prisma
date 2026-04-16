@@ -1,118 +1,177 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
-// 组织架构/学校级别
 model Organization {
-  id          Int      @id @default(autoincrement())
-  orgName     String   @unique
-  contactInfo String?
-  status      String   @default("ACTIVE")
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id          Int       @id @default(autoincrement())
+  orgName     String    @unique(map: "uk_lq_organization_org_name") @map("org_name")
+  contactInfo String?   @map("contact_info")
+  status      String    @default("ACTIVE")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  deletedAt   DateTime? @map("deleted_at")
 
-  users       User[]
-  agents      Agent[]
+  users  User[]
+  agents Agent[]
+
+  @@index([status], map: "idx_lq_organization_status")
+  @@index([createdAt], map: "idx_lq_organization_created_at")
+  @@index([updatedAt], map: "idx_lq_organization_updated_at")
+  @@index([deletedAt], map: "idx_lq_organization_deleted_at")
+  @@map("lq_organization")
 }
 
-// 用户模块
 model User {
-  id             Int      @id @default(autoincrement())
-  username       String   @unique
-  passwordHash   String
-  role           String   @default("TEACHER") // ENUM workaround for SQLite: SUPER_ADMIN, SCHOOL_ADMIN, TEACHER, STUDENT
-  orgId          Int?
-  tokenLimit     Int      @default(50000) // 分配的总额度
-  consumedToken  Int      @default(0)     // 已消耗额度
-  status         String   @default("ACTIVE")
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id            Int       @id @default(autoincrement())
+  username      String    @unique(map: "uk_lq_user_username")
+  passwordHash  String    @map("password_hash") @db.VarChar(255)
+  role          String    @default("TEACHER") @db.VarChar(50)
+  orgId         Int?      @map("org_id")
+  tokenLimit    Int       @default(50000) @map("token_limit")
+  consumedToken Int       @default(0) @map("consumed_token")
+  status        String    @default("ACTIVE") @db.VarChar(32)
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+  deletedAt     DateTime? @map("deleted_at")
 
-  organization   Organization? @relation(fields: [orgId], references: [id])
-  createdAgents  Agent[]
-  conversations  Conversation[]
+  organization  Organization? @relation(fields: [orgId], references: [id])
+  createdAgents Agent[]
+  conversations Conversation[]
+
+  @@index([orgId], map: "idx_lq_user_org_id")
+  @@index([role], map: "idx_lq_user_role")
+  @@index([status], map: "idx_lq_user_status")
+  @@index([createdAt], map: "idx_lq_user_created_at")
+  @@index([updatedAt], map: "idx_lq_user_updated_at")
+  @@index([deletedAt], map: "idx_lq_user_deleted_at")
+  @@map("lq_user")
 }
 
-// 智能体应用配置
 model Agent {
-  id             Int      @id @default(autoincrement())
-  title          String
-  description    String?  
-  iconUrl        String?
-  systemPrompt   String   
-  welcomeMsg     String?  
-  formConfig     String?  // JSON string representing the required/optional input fields
-  
-  creatorId      Int
-  orgId          Int?
-  
-  visibility     String   @default("PRIVATE") // ENUM workaround: PRIVATE, ORG_VISIBLE, PUBLIC
-  approvalStatus String   @default("APPROVED") // ENUM workaround: PENDING, APPROVED, REJECTED
-  isFeatured     Boolean  @default(false)      // 是否推荐到首页
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id             Int       @id @default(autoincrement())
+  title          String    @db.VarChar(255)
+  description    String?   @db.Text
+  iconUrl        String?   @map("icon_url") @db.VarChar(500)
+  systemPrompt   String    @map("system_prompt") @db.LongText
+  welcomeMsg     String?   @map("welcome_msg") @db.Text
+  formConfig     String?   @map("form_config") @db.LongText
+  creatorId      Int       @map("creator_id")
+  orgId          Int?      @map("org_id")
+  visibility     String    @default("PRIVATE") @db.VarChar(32)
+  approvalStatus String    @default("APPROVED") @map("approval_status") @db.VarChar(32)
+  isFeatured     Boolean   @default(false) @map("is_featured")
+  status         String    @default("ACTIVE") @db.VarChar(32)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  deletedAt      DateTime? @map("deleted_at")
 
-  creator        User           @relation(fields: [creatorId], references: [id])
-  organization   Organization?  @relation(fields: [orgId], references: [id])
-  
-  conversations  Conversation[]
-  categories     AgentCategory[]
+  creator       User          @relation(fields: [creatorId], references: [id])
+  organization  Organization? @relation(fields: [orgId], references: [id])
+  conversations Conversation[]
+  categories    AgentCategory[]
+
+  @@index([creatorId], map: "idx_lq_agent_creator_id")
+  @@index([orgId], map: "idx_lq_agent_org_id")
+  @@index([visibility], map: "idx_lq_agent_visibility")
+  @@index([approvalStatus], map: "idx_lq_agent_approval_status")
+  @@index([isFeatured], map: "idx_lq_agent_is_featured")
+  @@index([status], map: "idx_lq_agent_status")
+  @@index([createdAt], map: "idx_lq_agent_created_at")
+  @@index([updatedAt], map: "idx_lq_agent_updated_at")
+  @@index([deletedAt], map: "idx_lq_agent_deleted_at")
+  @@map("lq_agent")
 }
 
-// 分类目录表 (后台可动态配置前端左侧的树)
 model Category {
-  id        Int      @id @default(autoincrement())
-  name      String
-  parentId  Int?
-  weight    Int      @default(0)
-  createdAt DateTime @default(now())
+  id        Int       @id @default(autoincrement())
+  name      String    @db.VarChar(100)
+  parentId  Int?      @map("parent_id")
+  weight    Int       @default(0)
+  status    String    @default("ACTIVE") @db.VarChar(32)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
 
-  agents    AgentCategory[]
+  agents AgentCategory[]
+
+  @@index([parentId], map: "idx_lq_category_parent_id")
+  @@index([status], map: "idx_lq_category_status")
+  @@index([weight], map: "idx_lq_category_weight")
+  @@index([createdAt], map: "idx_lq_category_created_at")
+  @@index([updatedAt], map: "idx_lq_category_updated_at")
+  @@index([deletedAt], map: "idx_lq_category_deleted_at")
+  @@map("lq_category")
 }
 
-// 应用和目录的多对多关联表
 model AgentCategory {
-  agentId    Int
-  categoryId Int
-  
-  agent      Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
-  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  id         Int       @id @default(autoincrement())
+  agentId    Int       @map("agent_id")
+  categoryId Int       @map("category_id")
+  status     String    @default("ACTIVE") @db.VarChar(32)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
 
-  @@id([agentId, categoryId])
+  agent    Agent    @relation(fields: [agentId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([agentId, categoryId], map: "uk_lq_agent_category_agent_id_category_id")
+  @@index([agentId], map: "idx_lq_agent_category_agent_id")
+  @@index([categoryId], map: "idx_lq_agent_category_category_id")
+  @@index([status], map: "idx_lq_agent_category_status")
+  @@index([createdAt], map: "idx_lq_agent_category_created_at")
+  @@index([updatedAt], map: "idx_lq_agent_category_updated_at")
+  @@index([deletedAt], map: "idx_lq_agent_category_deleted_at")
+  @@map("lq_agent_category")
 }
 
-// 对话沙盒（房间）
 model Conversation {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  agentId   Int?
-  topic     String?  // AI自动提取的核心主题
-  isDeleted Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id        Int       @id @default(autoincrement())
+  userId    Int       @map("user_id")
+  agentId   Int?      @map("agent_id")
+  topic     String?   @db.VarChar(255)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  status    String    @default("ACTIVE") @db.VarChar(32)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
 
-  user      User     @relation(fields: [userId], references: [id])
-  agent     Agent?    @relation(fields: [agentId], references: [id])
-  messages  Message[]
+  user     User     @relation(fields: [userId], references: [id])
+  agent    Agent?   @relation(fields: [agentId], references: [id])
+  messages Message[]
+
+  @@index([userId], map: "idx_lq_conversation_user_id")
+  @@index([agentId], map: "idx_lq_conversation_agent_id")
+  @@index([isDeleted], map: "idx_lq_conversation_is_deleted")
+  @@index([status], map: "idx_lq_conversation_status")
+  @@index([createdAt], map: "idx_lq_conversation_created_at")
+  @@index([updatedAt], map: "idx_lq_conversation_updated_at")
+  @@index([deletedAt], map: "idx_lq_conversation_deleted_at")
+  @@map("lq_conversation")
 }
 
-// 历史上下文记录 (每一条气泡)
 model Message {
-  id               Int      @id @default(autoincrement())
-  convId           Int
-  role             String   // ENUM workaround: 'user', 'assistant', 'system'
-  content          String   
-  promptTokens     Int      @default(0)
-  completionTokens Int      @default(0)
-  createdAt        DateTime @default(now())
+  id               Int       @id @default(autoincrement())
+  convId           Int       @map("conversation_id")
+  role             String    @db.VarChar(32)
+  content          String    @db.LongText
+  promptTokens     Int       @default(0) @map("prompt_tokens")
+  completionTokens Int       @default(0) @map("completion_tokens")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  deletedAt        DateTime? @map("deleted_at")
 
-  conversation     Conversation @relation(fields: [convId], references: [id], onDelete: Cascade)
+  conversation Conversation @relation(fields: [convId], references: [id], onDelete: Cascade)
+
+  @@index([convId], map: "idx_lq_message_conversation_id")
+  @@index([role], map: "idx_lq_message_role")
+  @@index([createdAt], map: "idx_lq_message_created_at")
+  @@index([updatedAt], map: "idx_lq_message_updated_at")
+  @@index([deletedAt], map: "idx_lq_message_deleted_at")
+  @@map("lq_message")
 }
