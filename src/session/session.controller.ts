@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Delete, Param, Req, UseGuards, ParseIntPipe, Body } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Req, UseGuards, ParseIntPipe, Body, Res } from '@nestjs/common';
 import { SessionService } from './session.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import type { Response } from 'express';
 
 @Controller('session')
 @UseGuards(JwtAuthGuard)
@@ -33,7 +34,17 @@ export class SessionController {
 
   @Post('update-topic/:id')
   async updateTopic(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() body: { topic: string }) {
-    await this.sessionService.updateTopic(id, body.topic);
+    await this.sessionService.updateTopic(req.user.id, id, body.topic);
     return { success: true };
+  }
+
+  @Post('chat/:id')
+  async chat(
+    @Req() req: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { prompt: string },
+    @Res() res: Response
+  ) {
+    await this.sessionService.streamSessionChat(req.user.id, id, body?.prompt, res);
   }
 }
