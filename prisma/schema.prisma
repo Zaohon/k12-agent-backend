@@ -29,6 +29,7 @@ model Organization {
 model User {
   id            Int       @id @default(autoincrement())
   username      String    @unique(map: "uk_lq_user_username")
+  phone         String?   @unique(map: "uk_lq_user_phone") @db.VarChar(20)
   passwordHash  String    @map("password_hash") @db.VarChar(255)
   role          String    @default("TEACHER") @db.VarChar(50)
   orgId         Int?      @map("org_id")
@@ -44,6 +45,7 @@ model User {
   conversations Conversation[]
 
   @@index([orgId], map: "idx_lq_user_org_id")
+  @@index([phone], map: "idx_lq_user_phone")
   @@index([role], map: "idx_lq_user_role")
   @@index([status], map: "idx_lq_user_status")
   @@index([createdAt], map: "idx_lq_user_created_at")

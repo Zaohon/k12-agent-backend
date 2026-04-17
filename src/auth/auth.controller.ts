@@ -5,19 +5,35 @@ import { AuthService } from './auth.service';
 export class AuthController {
   constructor(private authService: AuthService) {}
 
+  @Post('sms_send')
+  async smsSend(@Body() body: any) {
+    if (!body?.phone) {
+      throw new UnauthorizedException('缺少手机号');
+    }
+    return this.authService.sendLoginCode(body.phone);
+  }
+
+  // Backward compatibility
+  @Post('send-code')
+  async sendCode(@Body() body: any) {
+    if (!body?.phone) {
+      throw new UnauthorizedException('缺少手机号');
+    }
+    return this.authService.sendLoginCode(body.phone);
+  }
+
   @Post('login')
   async login(@Body() body: any) {
-    const user = await this.authService.validateUser(body.username, body.password);
-    if (!user) {
-      throw new UnauthorizedException('用户名或密码错误！');
+    if (!body?.phone || !body?.code) {
+      throw new UnauthorizedException('缺少手机号或验证码');
     }
-    return this.authService.login(user);
+    return this.authService.loginByPhoneCode(body.phone, body.code);
   }
 
   @Post('register')
   async register(@Body() body: any) {
-    if (!body.username || !body.password) {
-      throw new UnauthorizedException('缺少账号或密码信息！');
+    if (!body?.phone || !body?.code) {
+      throw new UnauthorizedException('缺少手机号或验证码');
     }
     return this.authService.register(body);
   }
