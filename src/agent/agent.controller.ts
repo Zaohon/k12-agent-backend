@@ -41,8 +41,8 @@ export class AgentController {
   }
 
   @Post('update/:id')
-  async updateAgent(@Param('id', ParseIntPipe) id: number, @Body() body: any) {
-    const agent = await this.agentService.updateAgent(id, body);
+  async updateAgent(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() body: any) {
+    const agent = await this.agentService.updateAgent(req.user, id, body);
     return {
       success: true,
       data: agent

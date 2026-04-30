@@ -1,9 +1,53 @@
-import { Injectable, OnModuleInit } from '@nestjs/common';
+import { ForbiddenException, Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 
 @Injectable()
 export class AgentService implements OnModuleInit {
   constructor(private prisma: PrismaService) {}
+
+  private normalizeAgentConfigForCreate(data: any) {
+    return {
+      title: data?.title,
+      description: data?.description ?? null,
+      iconUrl: data?.iconUrl ?? null,
+      systemPrompt: data?.systemPrompt,
+      welcomeMsg: data?.welcomeMsg ?? null,
+      formConfig: data?.formConfig ?? null,
+      model: data?.model || 'deepseek-v4-flash',
+      enableWebSearch: Boolean(data?.enableWebSearch),
+      enableWebParse: Boolean(data?.enableWebParse),
+      enableDeepThink: Boolean(data?.enableDeepThink),
+      enableFileUpload: Boolean(data?.enableFileUpload),
+      enableKnowledgeBase: Boolean(data?.enableKnowledgeBase),
+      visibility: data?.visibility || 'PRIVATE',
+    };
+  }
+
+  private normalizeAgentConfigForUpdate(data: any) {
+    const patch: any = {};
+    const keys = [
+      'title',
+      'description',
+      'iconUrl',
+      'systemPrompt',
+      'welcomeMsg',
+      'formConfig',
+      'model',
+      'visibility',
+      'status',
+      'enableWebSearch',
+      'enableWebParse',
+      'enableDeepThink',
+      'enableFileUpload',
+      'enableKnowledgeBase',
+    ];
+    for (const key of keys) {
+      if (Object.prototype.hasOwnProperty.call(data, key)) {
+        patch[key] = data[key];
+      }
+    }
+    return patch;
+  }
 
   async onModuleInit() {
     const count = await this.prisma.agent.count();
@@ -187,7 +231,8 @@ export class AgentService implements OnModuleInit {
    * Based on PRD: Default visibility is strictly enforced.
    */
   async createAgent(user: { id: number, orgId?: number, role: string }, data: any) {
-    const { categoryId, ...cleanData } = data;
+    const { categoryId } = data;
+    const cleanData = this.normalizeAgentConfigForCreate(data);
     const isPublic = cleanData.visibility !== 'PRIVATE';
     const autoApprove = user.role === 'SUPER_ADMIN';
 
@@ -204,8 +249,17 @@ export class AgentService implements OnModuleInit {
     });
   }
 
-  async updateAgent(id: number, data: any) {
-    const { categoryId, ...cleanData } = data;
+  async updateAgent(user: { id: number, role: string }, id: number, data: any) {
+    const current = await this.prisma.agent.findUnique({ where: { id } });
+    if (!current) {
+      throw new ForbiddenException('智能体不存在');
+    }
+    if (current.creatorId !== user.id && user.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('无权限修改该智能体');
+    }
+
+    const { categoryId } = data;
+    const cleanData = this.normalizeAgentConfigForUpdate(data);
     // Basic backend protection for status downgrade if visibility gets elevated
     if (cleanData.visibility === 'PUBLIC' || cleanData.visibility === 'ORG_VISIBLE') {
       cleanData.approvalStatus = 'PENDING';
@@ -230,13 +284,19 @@ export class AgentService implements OnModuleInit {
   async getMyAgents(userId: number) {
     return this.prisma.agent.findMany({
       where: { creatorId: userId },
+      include: {
+        categories: true,
+      },
       orderBy: { updatedAt: 'desc' }
     });
   }
 
   async getAgentById(id: number) {
     return this.prisma.agent.findUnique({
-      where: { id }
+      where: { id },
+      include: {
+        categories: true,
+      },
     });
   }
 }

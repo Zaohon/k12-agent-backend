@@ -62,6 +62,12 @@ model Agent {
   systemPrompt   String    @map("system_prompt") @db.LongText
   welcomeMsg     String?   @map("welcome_msg") @db.Text
   formConfig     String?   @map("form_config") @db.LongText
+  model          String    @default("deepseek-v4-flash") @db.VarChar(100)
+  enableWebSearch Boolean  @default(false) @map("enable_web_search")
+  enableWebParse  Boolean  @default(false) @map("enable_web_parse")
+  enableDeepThink Boolean  @default(false) @map("enable_deep_think")
+  enableFileUpload Boolean @default(false) @map("enable_file_upload")
+  enableKnowledgeBase Boolean @default(false) @map("enable_knowledge_base")
   creatorId      Int       @map("creator_id")
   orgId          Int?      @map("org_id")
   visibility     String    @default("PRIVATE") @db.VarChar(32)
@@ -80,6 +86,7 @@ model Agent {
   @@index([creatorId], map: "idx_lq_agent_creator_id")
   @@index([orgId], map: "idx_lq_agent_org_id")
   @@index([visibility], map: "idx_lq_agent_visibility")
+  @@index([model], map: "idx_lq_agent_model")
   @@index([approvalStatus], map: "idx_lq_agent_approval_status")
   @@index([isFeatured], map: "idx_lq_agent_is_featured")
   @@index([status], map: "idx_lq_agent_status")

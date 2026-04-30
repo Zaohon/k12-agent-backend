@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+﻿import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import type { Response } from 'express';
 import { PrismaService } from '../prisma.service';
 
@@ -10,17 +10,27 @@ export class SessionService {
 
   async listSessions(userId: number) {
     return this.prisma.conversation.findMany({
-      where: { userId, isDeleted: false, agentId: null },
+      where: { userId, isDeleted: false },
       orderBy: { updatedAt: 'desc' },
     });
   }
 
-  async createSession(userId: number) {
+  async createSession(userId: number, agentId?: number) {
+    if (agentId) {
+      const [user, agent] = await Promise.all([
+        this.prisma.user.findUnique({ where: { id: userId } }),
+        this.prisma.agent.findUnique({ where: { id: agentId } }),
+      ]);
+      if (!user || !agent || !this.canAccessAgent(user, agent)) {
+        throw new ForbiddenException('智能体不存在或无权访问');
+      }
+    }
+
     return this.prisma.conversation.create({
       data: {
         userId,
         topic: SessionService.DEFAULT_TOPIC,
-        agentId: null,
+        agentId: agentId || null,
       },
     });
   }
@@ -60,7 +70,7 @@ export class SessionService {
 
     return this.prisma.conversation.update({
       where: { id: sessionId },
-      data: { topic: topic?.trim() || SessionService.DEFAULT_TOPIC },
+      data: { topic: this.normalizeTopic(topic) },
     });
   }
 
@@ -86,17 +96,32 @@ export class SessionService {
       take: 10,
     });
 
-    const messages = history.reverse().map((m) => ({
-      role: m.role as 'user' | 'assistant',
-      content: m.content,
-    }));
+    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = history
+      .reverse()
+      .map((m) => ({
+        role: m.role as 'user' | 'assistant',
+        content: m.content,
+      }));
+
+    let model = process.env.AI_MODEL || 'deepseek-v4-flash';
+    if (session.agentId) {
+      const agent = await this.prisma.agent.findUnique({ where: { id: session.agentId } });
+      if (!agent) {
+        throw new ForbiddenException('会话绑定的智能体不存在');
+      }
+      model = agent.model || model;
+      messages.unshift({
+        role: 'system',
+        content: agent.systemPrompt,
+      });
+    }
 
     await this.prisma.message.create({
       data: { convId: sessionId, role: 'user', content: text },
     });
     messages.push({ role: 'user', content: text });
 
-    const aiRes = await this.callAI(messages, true);
+    const aiRes = await this.callAI(messages, true, model);
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
@@ -141,9 +166,10 @@ export class SessionService {
         currentSession &&
         (!currentSession.topic ||
           currentSession.topic.trim() === '' ||
-          currentSession.topic === SessionService.DEFAULT_TOPIC)
+          currentSession.topic === SessionService.DEFAULT_TOPIC ||
+          this.isClearlyBrokenTopic(currentSession.topic))
       ) {
-        this.generateTopic(sessionId, text, fullResponse).catch((e) =>
+        this.generateTopic(sessionId, text, fullResponse, model).catch((e) =>
           console.error('Topic gen error', e),
         );
       }
@@ -157,27 +183,53 @@ export class SessionService {
     res.end();
   }
 
-  private async generateTopic(sessionId: number, userMsg: string, aiMsg: string) {
+  private async generateTopic(sessionId: number, userMsg: string, aiMsg: string, model?: string) {
     const summaryPrompt =
       `Summarize this conversation into one short Chinese title within 10 characters. ` +
       `Do not include punctuation or quotes. User: ${userMsg}. Assistant: ${aiMsg}`;
     const result = await (
-      await this.callAI([{ role: 'user', content: summaryPrompt }], false)
+      await this.callAI([{ role: 'user', content: summaryPrompt }], false, model)
     ).json();
-    const topic = result.choices?.[0]?.message?.content?.trim() || SessionService.DEFAULT_TOPIC;
+    const topic = this.normalizeTopic(result.choices?.[0]?.message?.content);
     await this.prisma.conversation.update({
       where: { id: sessionId },
       data: { topic },
     });
   }
 
-  private async callAI(messages: any[], stream = false) {
-    const apiKey = process.env.AI_API_KEY || 'sk-sp-4080f1e7e6cb4f578fa5ebfc0de8e31d';
-    const apiBase = (process.env.AI_API_BASE || 'https://coding.dashscope.aliyuncs.com/v1').replace(
-      /\/$/,
-      '',
-    );
-    const model = process.env.AI_MODEL || 'qwen3.5-plus';
+  private normalizeTopic(raw: unknown) {
+    const text = String(raw ?? '')
+      .replace(/\s+/g, ' ')
+      .trim();
+    if (!text) return SessionService.DEFAULT_TOPIC;
+    if (this.isClearlyBrokenTopic(text)) return SessionService.DEFAULT_TOPIC;
+    return text.slice(0, 32);
+  }
+
+  private isClearlyBrokenTopic(text: string) {
+    const t = String(text || '').trim();
+    return !!t && /^[\?锛焅uFFFD]+$/.test(t);
+  }
+
+  private canAccessAgent(user: any, agent: any) {
+    if (user.role === 'SUPER_ADMIN') return true;
+    if (agent.creatorId === user.id) return true;
+    if (agent.visibility === 'PUBLIC' && agent.approvalStatus === 'APPROVED') return true;
+    if (
+      agent.visibility === 'ORG_VISIBLE' &&
+      agent.approvalStatus === 'APPROVED' &&
+      user.orgId &&
+      agent.orgId === user.orgId
+    ) {
+      return true;
+    }
+    return false;
+  }
+
+  private async callAI(messages: any[], stream = false, modelOverride?: string) {
+    const apiKey = process.env.AI_API_KEY || '';
+    const apiBase = (process.env.AI_API_BASE || 'https://api.deepseek.com').replace(/\/$/, '');
+    const model = modelOverride || process.env.AI_MODEL || 'deepseek-v4-flash';
     return fetch(`${apiBase}/chat/completions`, {
       method: 'POST',
       headers: {

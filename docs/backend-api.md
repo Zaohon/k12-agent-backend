@@ -1,291 +1,499 @@
-# Backend API 文档
+﻿# K12 Agent Backend API 文档（含输入输出示例）
 
-适用项目：`k12-agent-backend`  
-适用日期：2026-04-17
+更新时间：2026-04-29  
+适用项目：`k12-agent-backend`
 
-## 通用约定
+## 通用说明
 
 - Base URL：`http://localhost:3000`
-- 认证方式：`Authorization: Bearer <token>`
-- 返回结构：
-  - 成功：多数接口为 `{ "success": true, "data": ... }`
-  - 失败：Nest 默认错误结构，含 `statusCode`、`message`、`error`
-
-## 目录
-
-1. 健康检查
-2. 认证 Auth
-3. 智能体 Agent
-4. 会话 Session
-5. 聊天 Chat（一次性）
-6. 组织 Org
-7. 审批 Approval
-8. 分类 Category
-
----
-
-## 1. 健康检查
-
-### `GET /`
-
-- 说明：服务连通性检查
-- 鉴权：否
-- 返回：`"Hello World!"`
-
----
-
-## 2. 认证 Auth
-
-### `POST /auth/sms_send`
-
-- 说明：发送短信验证码
-- 鉴权：否
-- Body：
-  - `phone: string`
-
-### `POST /auth/send-code`
-
-- 说明：`sms_send` 兼容别名
-- 鉴权：否
-- Body：
-  - `phone: string`
-
-### `POST /auth/login`
-
-- 说明：手机号验证码登录
-- 鉴权：否
-- Body：
-  - `phone: string`
-  - `code: string`
-- 返回：`access_token` + 用户信息
-
-### `POST /auth/register`
-
-- 说明：手机号验证码注册（当前实现复用登录逻辑）
-- 鉴权：否
-- Body：
-  - `phone: string`
-  - `code: string`
-
-### `GET /auth/profile`
-
-- 说明：获取当前用户信息
-- 鉴权：是
-
-### `POST /auth/update-password`
-
-- 说明：更新当前用户密码
-- 鉴权：是
-- Body：
-  - `newPassword: string`
-
----
-
-## 3. 智能体 Agent
-
-> 本模块接口均需 JWT
-
-### `GET /agent/discover`
-
-- 说明：发现页智能体列表
-- Query：
-  - `categoryId?: number`
-
-### `GET /agent/featured`
-
-- 说明：精选智能体列表
-
-### `GET /agent/my`
-
-- 说明：当前用户创建的智能体
-
-### `GET /agent/:id`
-
-- 说明：智能体详情
-- Path：
-  - `id: number`
-
-### `POST /agent/create`
-
-- 说明：创建智能体
-- Body：智能体字段（标题、提示词、表单配置等）
-
-### `POST /agent/update/:id`
-
-- 说明：更新智能体
-- Path：
-  - `id: number`
-- Body：待更新字段
-
----
-
-## 4. 会话 Session
-
-> 本模块接口均需 JWT
-
-### `GET /session/list`
-
-- 说明：获取当前用户会话列表（未删除，按更新时间倒序）
-
-### `POST /session/create`
-
-- 说明：创建新会话
-- 默认：`topic = 新对话`
-
-### `GET /session/history/:id`
-
-- 说明：获取会话历史消息（按创建时间正序）
-- Path：
-  - `id: number`
-
-### `POST /session/chat/:id`
-
-- 说明：会话内发送消息（SSE 流式）
-- Path：
-  - `id: number`
-- Body：
-  - `prompt: string`
-- 返回类型：`text/event-stream`
-- 备注：
-  - 会写入 user/assistant 消息
-  - 会更新会话 `updatedAt`
-  - 标题为默认值或异常时会异步自动生成 `topic`
-
-SSE 调用示例：
-
-```bash
-curl -N -X POST "http://localhost:3000/session/chat/123" \
-  -H "Authorization: Bearer <token>" \
-  -H "Content-Type: application/json" \
-  --data '{"prompt":"请用两句话总结如何提升课堂参与度"}'
+- 鉴权：除特殊说明外，均需 `Authorization: Bearer <token>`
+- 成功返回通常为：
+```json
+{ "success": true, "data": {} }
+```
+- 错误返回通常为：
+```json
+{ "statusCode": 401, "message": "Unauthorized", "error": "Unauthorized" }
 ```
 
-### `POST /session/update-topic/:id`
+---
 
-- 说明：手动修改会话标题
-- Path：
-  - `id: number`
-- Body：
-  - `topic: string`
-- 备注：后端会做标题清洗，空值/明显乱码回退为 `新对话`
+## 1) 健康检查
 
-### `DELETE /session/:id`
-
-- 说明：删除会话（软删除）
-- Path：
-  - `id: number`
+### GET `/`
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/"
+```
+成功响应：
+```json
+"Hello World!"
+```
 
 ---
 
-## 5. 聊天 Chat（一次性）
+## 2) 认证 Auth
 
-> 本模块接口均需 JWT
+### POST `/auth/sms_send`
+请求示例：
+```json
+{ "phone": "17600000000" }
+```
+成功响应示例：
+```json
+{ "success": true, "message": "验证码发送成功" }
+```
+失败响应示例：
+```json
+{ "statusCode": 401, "message": "缺少手机号", "error": "Unauthorized" }
+```
 
-### `POST /chat/stream/:agentId`
+### POST `/auth/send-code`
+请求示例：
+```json
+{ "phone": "17600000000" }
+```
+成功响应示例：
+```json
+{ "success": true, "message": "验证码发送成功" }
+```
 
-- 说明：按智能体参数进行一次性流式生成，不落会话历史
-- Path：
-  - `agentId: number`
-- Body：动态表单参数（按对应 agent 的 `formConfig`）
-- 返回类型：`text/event-stream`
+### POST `/auth/login`
+请求示例：
+```json
+{ "phone": "17600000000", "code": "123456" }
+```
+成功响应示例：
+```json
+{
+  "access_token": "<JWT_TOKEN>",
+  "user": {
+    "id": 5,
+    "username": "default",
+    "phone": "17600000000",
+    "role": "STUDENT",
+    "orgId": null
+  }
+}
+```
+失败响应示例：
+```json
+{ "statusCode": 401, "message": "验证码错误", "error": "Unauthorized" }
+```
 
-说明：
+### POST `/auth/register`
+请求示例：
+```json
+{ "phone": "17600000000", "code": "123456" }
+```
+成功响应示例：
+```json
+{
+  "access_token": "<JWT_TOKEN>",
+  "user": {
+    "id": 8,
+    "username": "default",
+    "phone": "17600000000",
+    "role": "STUDENT"
+  }
+}
+```
 
-- 已下线旧接口：`POST /chat/stream-session/:sessionId`
+### GET `/auth/profile`
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/auth/profile" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "id": 5,
+    "username": "default",
+    "phone": "17600000000",
+    "role": "SUPER_ADMIN",
+    "tokenLimit": 50000,
+    "consumedToken": 1200
+  }
+}
+```
 
----
-
-## 6. 组织 Org
-
-> 本模块接口均需 JWT
-
-### `GET /org/list`
-
-- 说明：组织列表（按用户权限过滤）
-
-### `POST /org/create`
-
-- 说明：创建组织
-- Body：
-  - `name: string`
-
-### `POST /org/admin`
-
-- 说明：创建组织管理员账号
-- Body：
-  - `orgId: number`
-  - `username: string`
-  - `password: string`
-
-### `GET /org/:orgId/users`
-
-- 说明：查询组织下用户
-- Path：
-  - `orgId: number`
-
-### `POST /org/:orgId/users/batch`
-
-- 说明：批量导入组织用户
-- Path：
-  - `orgId: number`
-- Body：
-  - `users: any[]`
-
----
-
-## 7. 审批 Approval
-
-> 本模块接口均需 JWT
-
-### `GET /approval/pending`
-
-- 说明：待审批列表
-
-### `POST /approval/review/:id`
-
-- 说明：审批单条智能体
-- Path：
-  - `id: number`
-- Body：
-  - `status: 'APPROVED' | 'REJECTED'`
-  - `categoryId?: number`
-  - `isFeatured?: boolean`
-
----
-
-## 8. 分类 Category
-
-### `GET /category/list`
-
-- 说明：分类列表
-- 鉴权：否
-
-### `POST /category/create`
-
-- 说明：创建分类
-- 鉴权：是（且需 `SUPER_ADMIN`）
-
-### `PATCH /category/:id`
-
-- 说明：更新分类
-- 鉴权：是（且需 `SUPER_ADMIN`）
-- Path：
-  - `id: number`
-
-### `DELETE /category/:id`
-
-- 说明：删除分类
-- 鉴权：是（且需 `SUPER_ADMIN`）
-- Path：
-  - `id: number`
+### POST `/auth/update-password`
+请求示例：
+```json
+{ "newPassword": "new-pass-123" }
+```
+成功响应示例：
+```json
+{ "success": true }
+```
 
 ---
 
-## 前端推荐调用顺序（会话页）
+## 3) 智能体 Agent
 
-1. `GET /session/list`
-2. `POST /session/create`
-3. `GET /session/history/:id`
-4. `POST /session/chat/:id`（SSE）
-5. 流结束后刷新 `GET /session/list`
-6. `DELETE /session/:id`
+### GET `/agent/my`
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/agent/my" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 4,
+      "title": "联通性测试Agent",
+      "description": "接口联通性测试",
+      "model": "deepseek-v4-flash",
+      "visibility": "ORG_VISIBLE",
+      "approvalStatus": "PENDING",
+      "enableWebSearch": true,
+      "enableWebParse": true,
+      "enableDeepThink": true,
+      "enableFileUpload": true,
+      "enableKnowledgeBase": false,
+      "categories": [{ "id": 10, "agentId": 4, "categoryId": 1 }]
+    }
+  ]
+}
+```
+
+### GET `/agent/:id`
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/agent/4" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "id": 4,
+    "title": "联通性测试Agent",
+    "systemPrompt": "你是一个测试助手",
+    "model": "deepseek-v4-flash",
+    "enableWebSearch": true,
+    "enableWebParse": true,
+    "enableDeepThink": true,
+    "enableFileUpload": true,
+    "enableKnowledgeBase": false
+  }
+}
+```
+
+### POST `/agent/create`
+请求示例：
+```json
+{
+  "title": "微积分高手",
+  "description": "帮助讲解微积分题",
+  "systemPrompt": "你是一名数学老师",
+  "welcomeMsg": "你好",
+  "iconUrl": "Document",
+  "categoryId": 1,
+  "model": "deepseek-v4-flash",
+  "enableWebSearch": true,
+  "enableWebParse": false,
+  "enableDeepThink": true,
+  "enableFileUpload": true,
+  "enableKnowledgeBase": false,
+  "visibility": "PRIVATE"
+}
+```
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "id": 9,
+    "title": "微积分高手",
+    "visibility": "PRIVATE",
+    "approvalStatus": "APPROVED",
+    "model": "deepseek-v4-flash"
+  }
+}
+```
+
+### POST `/agent/update/:id`
+请求示例：
+```json
+{ "description": "更新后的简介", "enableWebParse": true }
+```
+发布请求示例：
+```json
+{ "visibility": "ORG_VISIBLE" }
+```
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "id": 9,
+    "visibility": "ORG_VISIBLE",
+    "approvalStatus": "PENDING",
+    "enableWebParse": true
+  }
+}
+```
+失败响应示例（越权）：
+```json
+{ "statusCode": 403, "message": "无权限修改该智能体", "error": "Forbidden" }
+```
+
+### GET `/agent/discover`
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/agent/discover?categoryId=1" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{ "success": true, "data": [{ "id": 1, "title": "教案生成专家" }] }
+```
+
+### GET `/agent/featured`
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/agent/featured" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{ "success": true, "data": [{ "id": 1, "title": "教案生成专家", "isFeatured": true }] }
+```
+
+---
+
+## 4) 会话 Session
+
+### GET `/session/list`
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/session/list" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{ "success": true, "data": [{ "id": 101, "topic": "新对话" }] }
+```
+
+### POST `/session/create`
+请求示例：
+```bash
+curl -X POST "http://localhost:3000/session/create" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{ "success": true, "data": { "id": 102, "topic": "新对话" } }
+```
+
+### GET `/session/history/:id`
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/session/history/102" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": [
+    { "id": 1, "role": "user", "content": "你好" },
+    { "id": 2, "role": "assistant", "content": "你好，请问需要什么帮助？" }
+  ]
+}
+```
+
+### POST `/session/chat/:id`
+请求示例：
+```json
+{ "prompt": "请帮我出一份初中物理教案" }
+```
+成功响应示例：
+```text
+data: {"choices":[{"delta":{"content":"当然可以"}}]}
+
+data: [DONE]
+```
+
+### POST `/session/update-topic/:id`
+请求示例：
+```json
+{ "topic": "物理教案讨论" }
+```
+成功响应示例：
+```json
+{ "success": true }
+```
+
+### DELETE `/session/:id`
+请求示例：
+```bash
+curl -X DELETE "http://localhost:3000/session/102" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{ "success": true }
+```
+
+---
+
+## 5) 聊天 Chat（一次性）
+
+### POST `/chat/stream/:agentId`
+请求示例：
+```json
+{ "subject": "初二数学", "topic": "一元二次方程" }
+```
+成功响应示例：
+```text
+data: {"choices":[{"delta":{"content":"以下是你的教学方案"}}]}
+
+data: [DONE]
+```
+失败响应示例：
+```json
+{ "statusCode": 403, "message": "您的 Token 额度已耗尽，或账号状态异常。", "error": "Forbidden" }
+```
+
+---
+
+## 6) 组织 Org
+
+### GET `/org/list`
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/org/list" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{ "success": true, "data": [{ "id": 1, "orgName": "北京实验学校" }] }
+```
+
+### POST `/org/create`
+请求示例：
+```json
+{ "name": "上海示范学校" }
+```
+成功响应示例：
+```json
+{ "success": true, "data": { "id": 2, "orgName": "上海示范学校" } }
+```
+
+### POST `/org/admin`
+请求示例：
+```json
+{ "orgId": 2, "username": "school_admin", "password": "123456" }
+```
+成功响应示例：
+```json
+{ "success": true, "data": { "id": 11, "username": "school_admin", "role": "SCHOOL_ADMIN" } }
+```
+
+### GET `/org/:orgId/users`
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/org/2/users" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{ "success": true, "data": [{ "id": 21, "username": "stu001", "role": "STUDENT" }] }
+```
+
+### POST `/org/:orgId/users/batch`
+请求示例：
+```json
+{
+  "users": [
+    { "username": "stu001", "password": "123456", "role": "学生" },
+    { "username": "tea001", "password": "123456", "role": "老师" }
+  ]
+}
+```
+成功响应示例：
+```json
+{ "success": true, "data": { "total": 2, "created": 2, "failed": 0 } }
+```
+
+---
+
+## 7) 审批 Approval
+
+### GET `/approval/pending`
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/approval/pending" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{ "success": true, "data": [{ "id": 9, "title": "微积分高手", "approvalStatus": "PENDING" }] }
+```
+
+### POST `/approval/review/:id`
+请求示例（通过）：
+```json
+{ "status": "APPROVED", "categoryId": 1, "isFeatured": false }
+```
+请求示例（拒绝）：
+```json
+{ "status": "REJECTED" }
+```
+成功响应示例：
+```json
+{ "success": true, "data": { "id": 9, "approvalStatus": "APPROVED" } }
+```
+
+---
+
+## 8) 分类 Category
+
+### GET `/category/list`
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/category/list"
+```
+成功响应示例：
+```json
+{ "success": true, "data": [{ "id": 1, "name": "理科实验室" }] }
+```
+
+### POST `/category/create`
+请求示例：
+```json
+{ "name": "AI 写作", "weight": 5 }
+```
+成功响应示例：
+```json
+{ "success": true, "data": { "id": 12, "name": "AI 写作" } }
+```
+
+### PATCH `/category/:id`
+请求示例：
+```json
+{ "name": "AI 写作助手", "weight": 8 }
+```
+成功响应示例：
+```json
+{ "success": true, "data": { "id": 12, "name": "AI 写作助手" } }
+```
+
+### DELETE `/category/:id`
+请求示例：
+```bash
+curl -X DELETE "http://localhost:3000/category/12" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{ "success": true }
+```
+
+---
+
+## 9) 我的智能体推荐调用顺序（前端）
+
+1. `GET /agent/my`
+2. `GET /category/list`
+3. `POST /agent/create`
+4. `GET /agent/:id`
+5. `POST /agent/update/:id`
+6. `POST /agent/update/:id`（发布：改 `visibility`）
+7. 审核端：`GET /approval/pending` + `POST /approval/review/:id`

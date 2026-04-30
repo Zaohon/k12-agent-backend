@@ -15,8 +15,8 @@ export class SessionController {
   }
 
   @Post('create')
-  async create(@Req() req: any) {
-    const data = await this.sessionService.createSession(req.user.id);
+  async create(@Req() req: any, @Body() body: { agentId?: number }) {
+    const data = await this.sessionService.createSession(req.user.id, body?.agentId);
     return { success: true, data };
   }
 

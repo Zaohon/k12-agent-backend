@@ -82,9 +82,9 @@ export class ChatController {
   }
 
   private async callAI(messages: any[], stream = false) {
-    const apiKey = process.env.AI_API_KEY || 'sk-sp-4080f1e7e6cb4f578fa5ebfc0de8e31d';
-    const apiBase = (process.env.AI_API_BASE || 'https://coding.dashscope.aliyuncs.com/v1').replace(/\/$/, '');
-    const model = process.env.AI_MODEL || 'qwen3.5-plus';
+    const apiKey = process.env.AI_API_KEY || '';
+    const apiBase = (process.env.AI_API_BASE || 'https://api.deepseek.com').replace(/\/$/, '');
+    const model = process.env.AI_MODEL || 'deepseek-v4-flash';
     return fetch(`${apiBase}/chat/completions`, {
       method: 'POST',
       headers: {
