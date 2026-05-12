@@ -43,6 +43,7 @@ export class OrgService {
       data: {
         username,
         passwordHash: hash,
+        passwordSetAt: new Date(),
         role: 'SCHOOL_ADMIN',
         orgId
       }
@@ -79,6 +80,7 @@ export class OrgService {
               data: { 
                  username: String(u.username), 
                  passwordHash: pwHash, 
+                 passwordSetAt: new Date(),
                  role: roleValue, 
                  orgId 
               }

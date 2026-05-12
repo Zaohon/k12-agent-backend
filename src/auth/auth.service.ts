@@ -1,4 +1,4 @@
-import { Injectable, UnauthorizedException, BadRequestException, InternalServerErrorException } from '@nestjs/common';
+import { BadRequestException, Injectable, InternalServerErrorException, UnauthorizedException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
@@ -35,10 +35,25 @@ export class AuthService {
     return String(phone || '').trim();
   }
 
+  private normalizeAccount(account: string): string {
+    return String(account || '').trim();
+  }
+
   private validatePhone(phone: string): string {
     const normalized = this.normalizePhone(phone);
     if (!/^1\d{10}$/.test(normalized)) {
-      throw new BadRequestException('请输入有效的11位手机号');
+      throw new BadRequestException('请输入有效的 11 位手机号');
+    }
+    return normalized;
+  }
+
+  private ensurePasswordStrength(password: string): string {
+    const normalized = String(password || '');
+    if (normalized.length < 8) {
+      throw new BadRequestException('密码长度不能少于 8 位');
+    }
+    if (normalized.length > 64) {
+      throw new BadRequestException('密码长度不能超过 64 位');
     }
     return normalized;
   }
@@ -54,7 +69,7 @@ export class AuthService {
 
   private async sendAliyunSms(phone: string, code: string) {
     this.assertSmsConfig();
-    const signName = (process.env.ALI_SMS_SIGN_NAME || '\u9F99\u8D77\u672A\u6765').trim();
+    const signName = (process.env.ALI_SMS_SIGN_NAME || '龙起未来').trim();
 
     const request = new $Dysmsapi20170525.SendSmsRequest({
       phoneNumbers: phone,
@@ -67,7 +82,9 @@ export class AuthService {
     const response = await this.smsClient.sendSmsWithOptions(request, runtime);
 
     if (response.body?.code !== 'OK') {
-      throw new BadRequestException(`短信发送失败: ${response.body?.message || response.body?.code || 'UNKNOWN'}`);
+      throw new BadRequestException(
+        `短信发送失败: ${response.body?.message || response.body?.code || 'UNKNOWN'}`,
+      );
     }
 
     return response.body;
@@ -102,11 +119,11 @@ export class AuthService {
 
   private async ensurePublicOrg() {
     let publicOrg = await this.prisma.organization.findUnique({
-      where: { orgName: '公共网点 (默认)' },
+      where: { orgName: '公共网点（默认）' },
     });
     if (!publicOrg) {
       publicOrg = await this.prisma.organization.create({
-        data: { orgName: '公共网点 (默认)' },
+        data: { orgName: '公共网点（默认）' },
       });
     }
     return publicOrg;
@@ -158,17 +175,49 @@ export class AuthService {
     if (!user) {
       const org = await this.ensurePublicOrg();
       const username = await this.makeDefaultUsername(normalized);
-      const passwordHash = await bcrypt.hash(`${normalized}_${Date.now()}`, 10);
 
       user = await this.prisma.user.create({
         data: {
           username,
           phone: normalized,
-          passwordHash,
+          passwordHash: null,
+          passwordSetAt: null,
           role: 'STUDENT',
           orgId: org.id,
         },
       });
+    }
+
+    return this.login(user);
+  }
+
+  async loginByPassword(account: string, password: string) {
+    const normalizedAccount = this.normalizeAccount(account);
+    const normalizedPassword = String(password || '');
+
+    if (!normalizedAccount || !normalizedPassword) {
+      throw new BadRequestException('账号和密码不能为空');
+    }
+
+    const user = await this.prisma.user.findFirst({
+      where: {
+        deletedAt: null,
+        status: 'ACTIVE',
+        OR: [{ username: normalizedAccount }, { phone: normalizedAccount }],
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('账号或密码错误');
+    }
+
+    if (!user.passwordHash) {
+      throw new UnauthorizedException('当前账号尚未设置密码，请先使用验证码登录');
+    }
+
+    const matched = await bcrypt.compare(normalizedPassword, user.passwordHash);
+    if (!matched) {
+      throw new UnauthorizedException('账号或密码错误');
     }
 
     return this.login(user);
@@ -190,6 +239,7 @@ export class AuthService {
         username: user.username,
         phone: user.phone || null,
         role: user.role,
+        hasPassword: Boolean(user.passwordHash),
         remaining_tokens: user.tokenLimit - user.consumedToken,
       },
     };
@@ -208,15 +258,47 @@ export class AuthService {
       include: { organization: true },
     });
     if (!user) return null;
+
     const { passwordHash, ...result } = user;
-    return result;
+    return {
+      ...result,
+      hasPassword: Boolean(passwordHash),
+    };
   }
 
-  async updatePassword(userId: number, newPass: string) {
-    const hash = await bcrypt.hash(newPass, 10);
+  async updatePassword(
+    userId: number,
+    body: { currentPassword?: string; newPassword?: string; confirmPassword?: string },
+  ) {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.deletedAt || user.status !== 'ACTIVE') {
+      throw new UnauthorizedException('账号状态异常');
+    }
+
+    const newPassword = this.ensurePasswordStrength(body?.newPassword || '');
+    const confirmPassword = String(body?.confirmPassword || '');
+    if (confirmPassword && confirmPassword !== newPassword) {
+      throw new BadRequestException('两次输入的新密码不一致');
+    }
+
+    if (user.passwordHash) {
+      const currentPassword = String(body?.currentPassword || '');
+      if (!currentPassword) {
+        throw new BadRequestException('请输入当前密码');
+      }
+      const matched = await bcrypt.compare(currentPassword, user.passwordHash);
+      if (!matched) {
+        throw new UnauthorizedException('当前密码错误');
+      }
+    }
+
+    const hash = await bcrypt.hash(newPassword, 10);
     return this.prisma.user.update({
       where: { id: userId },
-      data: { passwordHash: hash },
+      data: {
+        passwordHash: hash,
+        passwordSetAt: new Date(),
+      },
     });
   }
 }

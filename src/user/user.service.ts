@@ -26,6 +26,7 @@ export class UserService {
       return {
         username,
         passwordHash,
+        passwordSetAt: new Date(),
         orgId: record.orgId,
         role: 'TEACHER', // default assignment
         tokenLimit: 50000 // Give an initial 50k token cap out of the box

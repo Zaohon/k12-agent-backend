@@ -23,7 +23,9 @@ CREATE TABLE `lq_organization` (
 CREATE TABLE `lq_user` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `username` VARCHAR(191) NOT NULL,
-    `password_hash` VARCHAR(255) NOT NULL,
+    `phone` VARCHAR(20) NULL,
+    `password_hash` VARCHAR(255) NULL,
+    `password_set_at` DATETIME(3) NULL,
     `role` VARCHAR(50) NOT NULL DEFAULT 'TEACHER',
     `org_id` INTEGER NULL,
     `token_limit` INTEGER NOT NULL DEFAULT 50000,
@@ -34,9 +36,12 @@ CREATE TABLE `lq_user` (
     `deleted_at` DATETIME(3) NULL,
 
     UNIQUE INDEX `uk_lq_user_username`(`username`),
+    UNIQUE INDEX `uk_lq_user_phone`(`phone`),
     INDEX `idx_lq_user_org_id`(`org_id`),
+    INDEX `idx_lq_user_phone`(`phone`),
     INDEX `idx_lq_user_role`(`role`),
     INDEX `idx_lq_user_status`(`status`),
+    INDEX `idx_lq_user_password_set_at`(`password_set_at`),
     INDEX `idx_lq_user_created_at`(`created_at`),
     INDEX `idx_lq_user_updated_at`(`updated_at`),
     INDEX `idx_lq_user_deleted_at`(`deleted_at`),

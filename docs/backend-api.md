@@ -1,6 +1,6 @@
-﻿# K12 Agent Backend API 文档（含输入输出示例）
+# K12 Agent Backend API 文档（含输入输出示例）
 
-更新时间：2026-04-29  
+更新时间：2026-05-11  
 适用项目：`k12-agent-backend`
 
 ## 通用说明
@@ -48,16 +48,6 @@ curl -X GET "http://localhost:3000/"
 { "statusCode": 401, "message": "缺少手机号", "error": "Unauthorized" }
 ```
 
-### POST `/auth/send-code`
-请求示例：
-```json
-{ "phone": "17600000000" }
-```
-成功响应示例：
-```json
-{ "success": true, "message": "验证码发送成功" }
-```
-
 ### POST `/auth/login`
 请求示例：
 ```json
@@ -72,13 +62,38 @@ curl -X GET "http://localhost:3000/"
     "username": "default",
     "phone": "17600000000",
     "role": "STUDENT",
-    "orgId": null
+    "hasPassword": false,
+    "remaining_tokens": 50000
   }
 }
 ```
 失败响应示例：
 ```json
 { "statusCode": 401, "message": "验证码错误", "error": "Unauthorized" }
+```
+
+### POST `/auth/password-login`
+请求示例：
+```json
+{ "account": "17600000000", "password": "Pass12345" }
+```
+成功响应示例：
+```json
+{
+  "access_token": "<JWT_TOKEN>",
+  "user": {
+    "id": 5,
+    "username": "default",
+    "phone": "17600000000",
+    "role": "STUDENT",
+    "hasPassword": true,
+    "remaining_tokens": 48800
+  }
+}
+```
+失败响应示例：
+```json
+{ "statusCode": 401, "message": "账号或密码错误", "error": "Unauthorized" }
 ```
 
 ### POST `/auth/register`
@@ -94,7 +109,9 @@ curl -X GET "http://localhost:3000/"
     "id": 8,
     "username": "default",
     "phone": "17600000000",
-    "role": "STUDENT"
+    "role": "STUDENT",
+    "hasPassword": false,
+    "remaining_tokens": 50000
   }
 }
 ```
@@ -113,6 +130,7 @@ curl -X GET "http://localhost:3000/auth/profile" -H "Authorization: Bearer <toke
     "username": "default",
     "phone": "17600000000",
     "role": "SUPER_ADMIN",
+    "hasPassword": true,
     "tokenLimit": 50000,
     "consumedToken": 1200
   }
@@ -122,7 +140,11 @@ curl -X GET "http://localhost:3000/auth/profile" -H "Authorization: Bearer <toke
 ### POST `/auth/update-password`
 请求示例：
 ```json
-{ "newPassword": "new-pass-123" }
+{ "currentPassword": "old-pass-123", "newPassword": "new-pass-123", "confirmPassword": "new-pass-123" }
+```
+首次设密请求示例（当前账号无密码）：
+```json
+{ "newPassword": "new-pass-123", "confirmPassword": "new-pass-123" }
 ```
 成功响应示例：
 ```json
