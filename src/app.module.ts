@@ -10,9 +10,11 @@ import { OrgModule } from './org/org.module';
 import { ApprovalModule } from './approval/approval.module';
 import { CategoryModule } from './category/category.module';
 import { SessionModule } from './session/session.module';
+import { KnowledgeModule } from './knowledge/knowledge.module';
+import { OssModule } from './oss/oss.module';
 
 @Module({
-  imports: [AgentModule, AuthModule, ChatModule, OrgModule, ApprovalModule, CategoryModule, SessionModule],
+  imports: [AgentModule, AuthModule, ChatModule, OrgModule, ApprovalModule, CategoryModule, SessionModule, KnowledgeModule, OssModule],
   controllers: [AppController],
   providers: [AppService, PrismaService],
 })

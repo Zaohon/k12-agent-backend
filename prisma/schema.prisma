@@ -18,6 +18,8 @@ model Organization {
 
   users  User[]
   agents Agent[]
+  knowledgeFolders KnowledgeFolder[]
+  knowledgeFiles   KnowledgeFile[]
 
   @@index([status], map: "idx_lq_organization_status")
   @@index([createdAt], map: "idx_lq_organization_created_at")
@@ -44,6 +46,8 @@ model User {
   organization  Organization? @relation(fields: [orgId], references: [id])
   createdAgents Agent[]
   conversations Conversation[]
+  knowledgeFolders KnowledgeFolder[]
+  knowledgeFiles   KnowledgeFile[]
 
   @@index([orgId], map: "idx_lq_user_org_id")
   @@index([phone], map: "idx_lq_user_phone")
@@ -185,4 +189,86 @@ model Message {
   @@index([updatedAt], map: "idx_lq_message_updated_at")
   @@index([deletedAt], map: "idx_lq_message_deleted_at")
   @@map("lq_message")
+}
+
+model KnowledgeFolder {
+  id        Int       @id @default(autoincrement())
+  name      String    @db.VarChar(120)
+  parentId  Int?      @map("parent_id")
+  ownerId   Int       @map("owner_id")
+  orgId     Int?      @map("org_id")
+  status    String    @default("ACTIVE") @db.VarChar(32)
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  deletedAt DateTime? @map("deleted_at")
+
+  parent   KnowledgeFolder?  @relation("KnowledgeFolderTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children KnowledgeFolder[] @relation("KnowledgeFolderTree")
+  owner    User              @relation(fields: [ownerId], references: [id])
+  organization Organization? @relation(fields: [orgId], references: [id])
+  files    KnowledgeFile[]
+
+  @@index([parentId], map: "idx_lq_knowledge_folder_parent_id")
+  @@index([ownerId], map: "idx_lq_knowledge_folder_owner_id")
+  @@index([orgId], map: "idx_lq_knowledge_folder_org_id")
+  @@index([status], map: "idx_lq_knowledge_folder_status")
+  @@index([createdAt], map: "idx_lq_knowledge_folder_created_at")
+  @@index([updatedAt], map: "idx_lq_knowledge_folder_updated_at")
+  @@index([deletedAt], map: "idx_lq_knowledge_folder_deleted_at")
+  @@map("lq_knowledge_folder")
+}
+
+model KnowledgeFile {
+  id         Int       @id @default(autoincrement())
+  folderId   Int?      @map("folder_id")
+  ownerId    Int       @map("owner_id")
+  orgId      Int?      @map("org_id")
+  name       String    @db.VarChar(255)
+  ext        String?   @db.VarChar(32)
+  mimeType   String?   @map("mime_type") @db.VarChar(120)
+  size       Int       @default(0)
+  ossKey     String    @map("oss_key") @db.VarChar(500)
+  url        String?   @db.VarChar(1000)
+  status     String    @default("UPLOADED") @db.VarChar(32)
+  parseStatus String   @default("PENDING") @map("parse_status") @db.VarChar(32)
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+  deletedAt  DateTime? @map("deleted_at")
+
+  folder       KnowledgeFolder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  owner        User               @relation(fields: [ownerId], references: [id])
+  organization Organization?      @relation(fields: [orgId], references: [id])
+  jobs         KnowledgeFileJob[]
+
+  @@index([folderId], map: "idx_lq_knowledge_file_folder_id")
+  @@index([ownerId], map: "idx_lq_knowledge_file_owner_id")
+  @@index([orgId], map: "idx_lq_knowledge_file_org_id")
+  @@index([status], map: "idx_lq_knowledge_file_status")
+  @@index([parseStatus], map: "idx_lq_knowledge_file_parse_status")
+  @@index([createdAt], map: "idx_lq_knowledge_file_created_at")
+  @@index([updatedAt], map: "idx_lq_knowledge_file_updated_at")
+  @@index([deletedAt], map: "idx_lq_knowledge_file_deleted_at")
+  @@index([name], map: "idx_lq_knowledge_file_name")
+  @@map("lq_knowledge_file")
+}
+
+model KnowledgeFileJob {
+  id           Int       @id @default(autoincrement())
+  fileId       Int       @map("file_id")
+  jobType      String    @default("PARSE") @map("job_type") @db.VarChar(32)
+  status       String    @default("PENDING") @db.VarChar(32)
+  errorMessage String?   @map("error_message") @db.VarChar(1000)
+  startedAt    DateTime? @map("started_at")
+  finishedAt   DateTime? @map("finished_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @updatedAt @map("updated_at")
+
+  file KnowledgeFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@index([fileId], map: "idx_lq_knowledge_file_job_file_id")
+  @@index([jobType], map: "idx_lq_knowledge_file_job_job_type")
+  @@index([status], map: "idx_lq_knowledge_file_job_status")
+  @@index([createdAt], map: "idx_lq_knowledge_file_job_created_at")
+  @@index([updatedAt], map: "idx_lq_knowledge_file_job_updated_at")
+  @@map("lq_knowledge_file_job")
 }
