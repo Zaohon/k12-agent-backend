@@ -15,14 +15,8 @@ export class KnowledgeService {
     const objects = await this.ossService.list('system/agent-logo/', 200);
     return objects
       .filter((item) => !item.key.endsWith('/'))
-      .map((item) => ({
-        key: item.key,
-        name: item.key.split('/').pop() || item.key,
-        url: item.url,
-        size: item.size,
-        lastModified: item.lastModified,
-      }))
-      .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+      .map((item) => item.key.split('/').pop() || item.key)
+      .sort((a, b) => a.localeCompare(b, 'zh-CN'));
   }
 
   async listFolders(user: any, query: { parentId?: number; keyword?: string }) {

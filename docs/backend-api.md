@@ -519,27 +519,9 @@ curl -X GET "http://localhost:3000/knowledge/system/agent-logos" -H "Authorizati
 {
   "success": true,
   "data": [
-    {
-      "key": "system/agent-logo/book-icon.png",
-      "name": "book-icon.png",
-      "url": "https://your-public-domain/system/agent-logo/book-icon.png",
-      "size": 200203,
-      "lastModified": "2026-05-13T10:00:00.000Z"
-    },
-    {
-      "key": "system/agent-logo/computer-icon.png",
-      "name": "computer-icon.png",
-      "url": "https://your-public-domain/system/agent-logo/computer-icon.png",
-      "size": 193573,
-      "lastModified": "2026-05-13T10:00:01.000Z"
-    },
-    {
-      "key": "system/agent-logo/file-icon.png",
-      "name": "file-icon.png",
-      "url": "https://your-public-domain/system/agent-logo/file-icon.png",
-      "size": 197740,
-      "lastModified": "2026-05-13T10:00:02.000Z"
-    }
+    "book-icon.png",
+    "computer-icon.png",
+    "file-icon.png"
   ]
 }
 ```
