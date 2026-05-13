@@ -49,6 +49,8 @@ curl -X GET "http://localhost:3000/"
 ```
 
 ### POST `/auth/login`
+用途：短信验证码登录（如果用户已存在则直接登录，否则自动创建学生账号）
+
 请求示例：
 ```json
 { "phone": "17600000000", "code": "123456" }
@@ -73,6 +75,8 @@ curl -X GET "http://localhost:3000/"
 ```
 
 ### POST `/auth/password-login`
+用途：账号密码登录，可使用用户名或手机号作为账号。
+
 请求示例：
 ```json
 { "account": "17600000000", "password": "Pass12345" }
@@ -94,26 +98,6 @@ curl -X GET "http://localhost:3000/"
 失败响应示例：
 ```json
 { "statusCode": 401, "message": "账号或密码错误", "error": "Unauthorized" }
-```
-
-### POST `/auth/register`
-请求示例：
-```json
-{ "phone": "17600000000", "code": "123456" }
-```
-成功响应示例：
-```json
-{
-  "access_token": "<JWT_TOKEN>",
-  "user": {
-    "id": 8,
-    "username": "default",
-    "phone": "17600000000",
-    "role": "STUDENT",
-    "hasPassword": false,
-    "remaining_tokens": 50000
-  }
-}
 ```
 
 ### GET `/auth/profile`
@@ -138,11 +122,13 @@ curl -X GET "http://localhost:3000/auth/profile" -H "Authorization: Bearer <toke
 ```
 
 ### POST `/auth/update-password`
+用途：已登录用户修改密码，当前账号已有密码时需提供当前密码；首次设密可直接设置新密码。
+
 请求示例：
 ```json
 { "currentPassword": "old-pass-123", "newPassword": "new-pass-123", "confirmPassword": "new-pass-123" }
 ```
-首次设密请求示例（当前账号无密码）：
+首次设密请求示例：
 ```json
 { "newPassword": "new-pass-123", "confirmPassword": "new-pass-123" }
 ```
@@ -518,4 +504,313 @@ curl -X DELETE "http://localhost:3000/category/12" -H "Authorization: Bearer <to
 4. `GET /agent/:id`
 5. `POST /agent/update/:id`
 6. `POST /agent/update/:id`（发布：改 `visibility`）
+
+---
+
+## 10) 知识库 Knowledge
+
+### GET `/knowledge/folders`
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/knowledge/folders?parentId=0&keyword=教案" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 11,
+      "name": "教案素材",
+      "parentId": null,
+      "ownerId": 5,
+      "orgId": 1,
+      "status": "ACTIVE",
+      "createdAt": "2026-05-13T04:00:00.000Z",
+      "updatedAt": "2026-05-13T04:00:00.000Z",
+      "deletedAt": null,
+      "folderCount": 3,
+      "fileCount": 12
+    }
+  ]
+}
+```
+
+### GET `/knowledge/folders/:id`
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/knowledge/folders/11" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "id": 11,
+    "name": "教案素材",
+    "parentId": null,
+    "ownerId": 5,
+    "orgId": 1,
+    "status": "ACTIVE",
+    "createdAt": "2026-05-13T04:00:00.000Z",
+    "updatedAt": "2026-05-13T04:00:00.000Z",
+    "deletedAt": null,
+    "parent": null,
+    "folderCount": 3,
+    "fileCount": 12
+  }
+}
+```
+
+### POST `/knowledge/folders`
+请求示例：
+```json
+{
+  "name": "课程资料",
+  "parentId": null
+}
+```
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "id": 20,
+    "name": "课程资料",
+    "parentId": null,
+    "ownerId": 5,
+    "orgId": 1,
+    "status": "ACTIVE",
+    "createdAt": "2026-05-13T05:00:00.000Z",
+    "updatedAt": "2026-05-13T05:00:00.000Z",
+    "deletedAt": null
+  }
+}
+```
+
+### PATCH `/knowledge/folders/:id`
+请求示例：
+```json
+{
+  "name": "更新后的文件夹名"
+}
+```
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "id": 20,
+    "name": "更新后的文件夹名",
+    "parentId": null,
+    "ownerId": 5,
+    "orgId": 1,
+    "status": "ACTIVE",
+    "createdAt": "2026-05-13T05:00:00.000Z",
+    "updatedAt": "2026-05-13T05:10:00.000Z",
+    "deletedAt": null
+  }
+}
+```
+
+### DELETE `/knowledge/folders/:id`
+请求示例：
+```bash
+curl -X DELETE "http://localhost:3000/knowledge/folders/20" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{ "success": true }
+```
+失败响应示例（存在子文件夹或文件）：
+```json
+{
+  "statusCode": 400,
+  "message": "文件夹下仍有子文件夹或文件，暂不支持直接删除",
+  "error": "Bad Request"
+}
+```
+
+### GET `/knowledge/files`
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/knowledge/files?folderId=20&keyword=教案" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 101,
+      "folderId": 20,
+      "ownerId": 5,
+      "orgId": 1,
+      "name": "高一物理教案.pdf",
+      "ext": "pdf",
+      "mimeType": "application/pdf",
+      "size": 234567,
+      "ossKey": "knowledge/5/2026/05/uuid-高一物理教案.pdf",
+      "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-高一物理教案.pdf",
+      "status": "UPLOADED",
+      "parseStatus": "PENDING",
+      "createdAt": "2026-05-13T05:20:00.000Z",
+      "updatedAt": "2026-05-13T05:20:00.000Z",
+      "deletedAt": null
+    }
+  ]
+}
+```
+
+### GET `/knowledge/files/recent`
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/knowledge/files/recent?limit=5" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 101,
+      "folderId": 20,
+      "ownerId": 5,
+      "orgId": 1,
+      "name": "高一物理教案.pdf",
+      "ext": "pdf",
+      "mimeType": "application/pdf",
+      "size": 234567,
+      "ossKey": "knowledge/5/2026/05/uuid-高一物理教案.pdf",
+      "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-高一物理教案.pdf",
+      "status": "UPLOADED",
+      "parseStatus": "PENDING",
+      "createdAt": "2026-05-13T05:20:00.000Z",
+      "updatedAt": "2026-05-13T05:20:00.000Z",
+      "deletedAt": null
+    }
+  ]
+}
+```
+
+### GET `/knowledge/files/:id`
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/knowledge/files/101" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "id": 101,
+    "folderId": 20,
+    "ownerId": 5,
+    "orgId": 1,
+    "name": "高一物理教案.pdf",
+    "ext": "pdf",
+    "mimeType": "application/pdf",
+    "size": 234567,
+    "ossKey": "knowledge/5/2026/05/uuid-高一物理教案.pdf",
+    "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-高一物理教案.pdf",
+    "status": "UPLOADED",
+    "parseStatus": "PENDING",
+    "createdAt": "2026-05-13T05:20:00.000Z",
+    "updatedAt": "2026-05-13T05:20:00.000Z",
+    "deletedAt": null,
+    "folder": {
+      "id": 20,
+      "name": "课程资料"
+    }
+  }
+}
+```
+
+### POST `/knowledge/files/upload-policy`
+请求示例：
+```json
+{
+  "fileName": "lesson-plan.docx",
+  "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "folderId": 20
+}
+```
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "key": "knowledge/5/2026/05/uuid-lesson-plan.docx",
+    "uploadUrl": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-lesson-plan.docx?Signature=...",
+    "publicUrl": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-lesson-plan.docx",
+    "expiresInSeconds": 600
+  }
+}
+```
+
+### POST `/knowledge/files`
+请求示例：
+```json
+{
+  "folderId": 20,
+  "name": "lesson-plan.docx",
+  "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "size": 123456,
+  "ossKey": "knowledge/5/2026/05/uuid-lesson-plan.docx",
+  "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-lesson-plan.docx"
+}
+```
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "id": 102,
+    "folderId": 20,
+    "ownerId": 5,
+    "orgId": 1,
+    "name": "lesson-plan.docx",
+    "ext": "docx",
+    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "size": 123456,
+    "ossKey": "knowledge/5/2026/05/uuid-lesson-plan.docx",
+    "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-lesson-plan.docx",
+    "status": "UPLOADED",
+    "parseStatus": "PENDING",
+    "createdAt": "2026-05-13T05:30:00.000Z",
+    "updatedAt": "2026-05-13T05:30:00.000Z",
+    "deletedAt": null
+  }
+}
+```
+
+### DELETE `/knowledge/files/:id`
+请求示例：
+```bash
+curl -X DELETE "http://localhost:3000/knowledge/files/102" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{ "success": true }
+```
+
+### GET `/knowledge/storage/stats`
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/knowledge/storage/stats" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "folderCount": 5,
+    "fileCount": 28,
+    "usedBytes": 12345678,
+    "totalBytes": 1073741824,
+    "usageRate": 0.0115
+  }
+}
+```
+
 7. 审核端：`GET /approval/pending` + `POST /approval/review/:id`
