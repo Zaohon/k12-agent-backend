@@ -1,4 +1,4 @@
-import { ForbiddenException, Injectable, OnModuleInit } from '@nestjs/common';
+import { ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 
 @Injectable()
@@ -298,5 +298,22 @@ export class AgentService implements OnModuleInit {
         categories: true,
       },
     });
+  }
+
+  async deleteAgent(user: { id: number, role: string }, id: number) {
+    const current = await this.prisma.agent.findUnique({ where: { id } });
+    if (!current) {
+      throw new NotFoundException('智能体不存在');
+    }
+    if (current.creatorId !== user.id && user.role !== 'SUPER_ADMIN') {
+      throw new ForbiddenException('无权限删除该智能体');
+    }
+
+    await this.prisma.agentCategory.deleteMany({ where: { agentId: id } });
+    await this.prisma.conversation.updateMany({
+      where: { agentId: id },
+      data: { agentId: null },
+    });
+    await this.prisma.agent.delete({ where: { id } });
   }
 }

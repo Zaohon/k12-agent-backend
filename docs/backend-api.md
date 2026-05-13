@@ -261,6 +261,20 @@ curl -X GET "http://localhost:3000/agent/discover?categoryId=1" -H "Authorizatio
 { "success": true, "data": [{ "id": 1, "title": "教案生成专家" }] }
 ```
 
+### DELETE `/agent/:id`
+请求示例：
+```bash
+curl -X DELETE "http://localhost:3000/agent/9" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{ "success": true }
+```
+失败响应示例（越权）：
+```json
+{ "statusCode": 403, "message": "无权限删除该智能体", "error": "Forbidden" }
+```
+
 ### GET `/agent/featured`
 请求示例：
 ```bash
@@ -504,6 +518,7 @@ curl -X DELETE "http://localhost:3000/category/12" -H "Authorization: Bearer <to
 4. `GET /agent/:id`
 5. `POST /agent/update/:id`
 6. `POST /agent/update/:id`（发布：改 `visibility`）
+7. `DELETE /agent/:id`
 
 ---
 

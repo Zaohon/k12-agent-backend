@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Req, UseGuards, Param, ParseIntPipe, Query } from '@nestjs/common';
+import { Controller, Get, Post, Body, Req, UseGuards, Param, ParseIntPipe, Query, Delete } from '@nestjs/common';
 import { AgentService } from './agent.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -55,6 +55,14 @@ export class AgentController {
     return {
       success: true,
       data: agent
+    };
+  }
+
+  @Delete(':id')
+  async deleteAgent(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
+    await this.agentService.deleteAgent(req.user, id);
+    return {
+      success: true
     };
   }
 }
