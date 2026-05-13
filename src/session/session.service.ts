@@ -5,6 +5,7 @@ import { PrismaService } from '../prisma.service';
 @Injectable()
 export class SessionService {
   private static readonly DEFAULT_TOPIC = '\u65b0\u5bf9\u8bdd';
+  private static readonly DEFAULT_AGENT_ID = 10;
 
   constructor(private prisma: PrismaService) {}
 
@@ -16,10 +17,11 @@ export class SessionService {
   }
 
   async createSession(userId: number, agentId?: number) {
-    if (agentId) {
+    const effectiveAgentId = agentId || SessionService.DEFAULT_AGENT_ID;
+    if (effectiveAgentId) {
       const [user, agent] = await Promise.all([
         this.prisma.user.findUnique({ where: { id: userId } }),
-        this.prisma.agent.findUnique({ where: { id: agentId } }),
+        this.prisma.agent.findUnique({ where: { id: effectiveAgentId } }),
       ]);
       if (!user || !agent || !this.canAccessAgent(user, agent)) {
         throw new ForbiddenException('智能体不存在或无权访问');
@@ -30,7 +32,7 @@ export class SessionService {
       data: {
         userId,
         topic: SessionService.DEFAULT_TOPIC,
-        agentId: agentId || null,
+        agentId: effectiveAgentId,
       },
     });
   }
