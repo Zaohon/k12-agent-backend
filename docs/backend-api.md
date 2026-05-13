@@ -509,6 +509,41 @@ curl -X DELETE "http://localhost:3000/category/12" -H "Authorization: Bearer <to
 
 ## 10) 知识库 Knowledge
 
+### GET `/knowledge/system/agent-logos`
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/knowledge/system/agent-logos" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "key": "system/agent-logo/book-icon.png",
+      "name": "book-icon.png",
+      "url": "https://your-public-domain/system/agent-logo/book-icon.png",
+      "size": 200203,
+      "lastModified": "2026-05-13T10:00:00.000Z"
+    },
+    {
+      "key": "system/agent-logo/computer-icon.png",
+      "name": "computer-icon.png",
+      "url": "https://your-public-domain/system/agent-logo/computer-icon.png",
+      "size": 193573,
+      "lastModified": "2026-05-13T10:00:01.000Z"
+    },
+    {
+      "key": "system/agent-logo/file-icon.png",
+      "name": "file-icon.png",
+      "url": "https://your-public-domain/system/agent-logo/file-icon.png",
+      "size": 197740,
+      "lastModified": "2026-05-13T10:00:02.000Z"
+    }
+  ]
+}
+```
+
 ### GET `/knowledge/folders`
 请求示例：
 ```bash

@@ -19,6 +19,12 @@ import { KnowledgeService } from './knowledge.service';
 export class KnowledgeController {
   constructor(private readonly knowledgeService: KnowledgeService) {}
 
+  @Get('system/agent-logos')
+  async listSystemAgentLogos() {
+    const data = await this.knowledgeService.listSystemAgentLogos();
+    return { success: true, data };
+  }
+
   @Get('folders')
   async listFolders(@Req() req: any, @Query('parentId') parentId?: string, @Query('keyword') keyword?: string) {
     const data = await this.knowledgeService.listFolders(req.user, {

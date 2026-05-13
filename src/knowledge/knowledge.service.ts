@@ -11,6 +11,20 @@ export class KnowledgeService {
     private readonly ossService: OssService,
   ) {}
 
+  async listSystemAgentLogos() {
+    const objects = await this.ossService.list('system/agent-logo/', 200);
+    return objects
+      .filter((item) => !item.key.endsWith('/'))
+      .map((item) => ({
+        key: item.key,
+        name: item.key.split('/').pop() || item.key,
+        url: item.url,
+        size: item.size,
+        lastModified: item.lastModified,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+  }
+
   async listFolders(user: any, query: { parentId?: number; keyword?: string }) {
     if (query.parentId) {
       await this.assertFolderOwner(user.id, query.parentId);

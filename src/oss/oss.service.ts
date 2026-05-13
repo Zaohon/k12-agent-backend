@@ -23,6 +23,13 @@ export interface OssSignedUploadResult {
   expiresInSeconds: number;
 }
 
+export interface OssListObjectItem {
+  key: string;
+  url: string;
+  size?: number;
+  lastModified?: string;
+}
+
 @Injectable()
 export class OssService {
   private readonly bucket: string;
@@ -99,6 +106,25 @@ export class OssService {
       publicUrl: this.getPublicUrl(key),
       expiresInSeconds,
     };
+  }
+
+  async list(prefix: string, maxKeys = 100): Promise<OssListObjectItem[]> {
+    const normalizedPrefix = String(prefix || '').replace(/^\/+/, '');
+    const result = await this.client.list(
+      {
+        prefix: normalizedPrefix,
+        'max-keys': Math.min(Math.max(maxKeys, 1), 1000),
+      },
+      {},
+    );
+
+    const objects = result.objects || [];
+    return objects.map((item: any) => ({
+      key: item.name,
+      url: this.getPublicUrl(item.name),
+      size: item.size,
+      lastModified: item.lastModified,
+    }));
   }
 
   getPublicUrl(key: string) {
