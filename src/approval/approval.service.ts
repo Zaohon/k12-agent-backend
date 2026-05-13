@@ -10,7 +10,7 @@ export class ApprovalService {
       // Super admins see ALL pending agents
       return this.prisma.agent.findMany({
         where: { approvalStatus: 'PENDING' },
-        include: { creator: { select: { username: true } }, organization: { select: { orgName: true } } },
+        include: { creator: { select: { username: true, role: true } }, organization: { select: { orgName: true } } },
         orderBy: { updatedAt: 'desc' }
       });
     } else if (user.role === 'SCHOOL_ADMIN') {
@@ -20,7 +20,7 @@ export class ApprovalService {
           approvalStatus: 'PENDING', 
           orgId: user.orgId 
         },
-        include: { creator: { select: { username: true } }, organization: { select: { orgName: true } } },
+        include: { creator: { select: { username: true, role: true } }, organization: { select: { orgName: true } } },
         orderBy: { updatedAt: 'desc' }
       });
     } else {
