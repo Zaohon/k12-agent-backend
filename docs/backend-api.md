@@ -251,6 +251,22 @@ curl -X GET "http://localhost:3000/agent/4" -H "Authorization: Bearer <token>"
 { "statusCode": 403, "message": "无权限修改该智能体", "error": "Forbidden" }
 ```
 
+### POST `/agent/optimize`
+用途：根据用户输入的提示词文本，调用后端大模型进行一键优化，返回更清晰、简洁的提示词。
+请求示例：
+```json
+{ "text": "你是一名数学老师，帮助学生学习代数" }
+```
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "optimizedText": "你是数学教师，需以清晰、简洁的方式帮助学生理解代数概念。"
+  }
+}
+```
+
 ### GET `/agent/discover`
 请求示例：
 ```bash
