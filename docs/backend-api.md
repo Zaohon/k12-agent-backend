@@ -508,6 +508,58 @@ curl -X DELETE "http://localhost:3000/category/12" -H "Authorization: Bearer <to
 { "success": true }
 ```
 
+### GET `/category/:id/agents`
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/category/3/agents" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 23,
+      "title": "作文批改助手",
+      "description": "帮助学生提升写作能力",
+      "model": "deepseek-v4-flash",
+      "visibility": "PUBLIC",
+      "approvalStatus": "APPROVED"
+    }
+  ]
+}
+```
+
+### DELETE `/category/:id/agents/:agentId`
+请求示例：
+```bash
+curl -X DELETE "http://localhost:3000/category/3/agents/23" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{ "success": true }
+```
+
+### PATCH `/category/:id/agents/:agentId`
+请求示例：
+```json
+{ "targetCategoryId": 5 }
+```
+成功响应示例：
+```json
+{ "success": true }
+```
+
+### PUT `/category/:id/agents`
+请求示例：
+```json
+{ "agentIds": [23, 45, 67] }
+```
+成功响应示例：
+```json
+{ "success": true }
+```
+
 ---
 
 ## 9) 我的智能体推荐调用顺序（前端）
