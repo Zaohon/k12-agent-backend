@@ -18,6 +18,7 @@ model Organization {
 
   users  User[]
   agents Agent[]
+  categories Category[]
   knowledgeFolders KnowledgeFolder[]
   knowledgeFiles   KnowledgeFile[]
 
@@ -106,15 +107,18 @@ model Category {
   id        Int       @id @default(autoincrement())
   name      String    @db.VarChar(100)
   parentId  Int?      @map("parent_id")
+  orgId     Int?      @map("org_id")
   weight    Int       @default(0)
   status    String    @default("ACTIVE") @db.VarChar(32)
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   deletedAt DateTime? @map("deleted_at")
 
+  organization Organization? @relation(fields: [orgId], references: [id])
   agents AgentCategory[]
 
   @@index([parentId], map: "idx_lq_category_parent_id")
+  @@index([orgId], map: "idx_lq_category_org_id")
   @@index([status], map: "idx_lq_category_status")
   @@index([weight], map: "idx_lq_category_weight")
   @@index([createdAt], map: "idx_lq_category_created_at")

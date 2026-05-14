@@ -91,6 +91,7 @@ CREATE TABLE `lq_category` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `name` VARCHAR(100) NOT NULL,
     `parent_id` INTEGER NULL,
+    `org_id` INTEGER NULL,
     `weight` INTEGER NOT NULL DEFAULT 0,
     `status` VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
@@ -98,6 +99,7 @@ CREATE TABLE `lq_category` (
     `deleted_at` DATETIME(3) NULL,
 
     INDEX `idx_lq_category_parent_id`(`parent_id`),
+    INDEX `idx_lq_category_org_id`(`org_id`),
     INDEX `idx_lq_category_status`(`status`),
     INDEX `idx_lq_category_weight`(`weight`),
     INDEX `idx_lq_category_created_at`(`created_at`),
@@ -254,6 +256,9 @@ ALTER TABLE `lq_agent_category` ADD CONSTRAINT `lq_agent_category_agent_id_fkey`
 
 -- AddForeignKey
 ALTER TABLE `lq_agent_category` ADD CONSTRAINT `lq_agent_category_category_id_fkey` FOREIGN KEY (`category_id`) REFERENCES `lq_category`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE `lq_category` ADD CONSTRAINT `lq_category_org_id_fkey` FOREIGN KEY (`org_id`) REFERENCES `lq_organization`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `lq_conversation` ADD CONSTRAINT `lq_conversation_user_id_fkey` FOREIGN KEY (`user_id`) REFERENCES `lq_user`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;

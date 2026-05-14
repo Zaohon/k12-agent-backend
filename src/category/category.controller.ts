@@ -3,36 +3,31 @@ import { CategoryService } from './category.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
 @Controller('category')
+@UseGuards(JwtAuthGuard)
 export class CategoryController {
   constructor(private readonly categoryService: CategoryService) {}
 
   @Get('list')
-  async listCategories() {
-    const list = await this.categoryService.list();
+  async listCategories(@Req() req: any) {
+    const list = await this.categoryService.list(req.user);
     return { success: true, data: list };
   }
 
   @Post('create')
-  @UseGuards(JwtAuthGuard)
   async createCategory(@Req() req: any, @Body() body: any) {
-     if (req.user.role !== 'SUPER_ADMIN') throw new Error('Forbidden');
-     const c = await this.categoryService.create(body);
+     const c = await this.categoryService.create(req.user, body);
      return { success: true, data: c };
   }
 
   @Patch(':id')
-  @UseGuards(JwtAuthGuard)
   async updateCategory(@Req() req: any, @Param('id') id: string, @Body() body: any) {
-     if (req.user.role !== 'SUPER_ADMIN') throw new Error('Forbidden');
-     const c = await this.categoryService.update(parseInt(id), body);
+     const c = await this.categoryService.update(req.user, parseInt(id), body);
      return { success: true, data: c };
   }
 
   @Delete(':id')
-  @UseGuards(JwtAuthGuard)
   async deleteCategory(@Req() req: any, @Param('id') id: string) {
-     if (req.user.role !== 'SUPER_ADMIN') throw new Error('Forbidden');
-     await this.categoryService.delete(parseInt(id));
+     await this.categoryService.delete(req.user, parseInt(id));
      return { success: true };
   }
 }
