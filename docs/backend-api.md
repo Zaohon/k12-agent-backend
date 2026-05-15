@@ -141,65 +141,257 @@ curl -X GET "http://localhost:3000/auth/profile" -H "Authorization: Bearer <toke
 
 ## 3) 智能体 Agent
 
-### GET `/agent/my`
+说明：
+- 本章节所有接口都需要 JWT。
+- `visibility` 目前可取：`PRIVATE`、`ORG_VISIBLE`、`PUBLIC`。
+- `approvalStatus` 目前可取：`PENDING`、`APPROVED`、`REJECTED`。
+- 创建/修改时，布尔能力开关会被后端转成 `true/false`。
+
+### GET `/agent/discover`
+用途：获取当前用户在“发现页”可见的智能体列表。
+
+规则：
+- 普通用户可看到：
+  - `PUBLIC + APPROVED` 的智能体
+  - 本组织下 `ORG_VISIBLE + APPROVED` 的智能体
+  - 自己创建的智能体
+- `SUPER_ADMIN` 当前会放宽可见性过滤，返回全部智能体。
+- 可选按分类过滤：`categoryId`
+
 请求示例：
 ```bash
-curl -X GET "http://localhost:3000/agent/my" -H "Authorization: Bearer <token>"
+curl -X GET "http://localhost:3000/agent/discover?categoryId=1" -H "Authorization: Bearer <token>"
 ```
+
 成功响应示例：
 ```json
 {
   "success": true,
   "data": [
     {
-      "id": 4,
-      "title": "联通性测试Agent",
-      "description": "接口联通性测
+      "id": 5,
+      "title": "东西",
+      "description": "测试公共智能体",
+      "iconUrl": "Document",
+      "systemPrompt": "你是一个测试助手",
+      "welcomeMsg": "你好，我来帮你",
+      "formConfig": "[{\"key\":\"topic\",\"label\":\"主题\",\"type\":\"input\",\"required\":true}]",
       "model": "deepseek-v4-flash",
+      "enableWebSearch": false,
+      "enableWebParse": false,
+      "enableDeepThink": false,
+      "enableFileUpload": false,
+      "enableKnowledgeBase": false,
+      "creatorId": 5,
+      "orgId": 1,
+      "visibility": "PUBLIC",
+      "approvalStatus": "APPROVED",
+      "isFeatured": false,
+      "status": "ACTIVE",
+      "createdAt": "2026-04-30T09:54:28.777Z",
+      "updatedAt": "2026-04-30T09:55:24.956Z",
+      "deletedAt": null,
+      "categories": [
+        {
+          "id": 12,
+          "agentId": 5,
+          "categoryId": 1,
+          "status": "ACTIVE",
+          "createdAt": "2026-05-15T10:00:00.000Z",
+          "updatedAt": "2026-05-15T10:00:00.000Z",
+          "deletedAt": null,
+          "category": {
+            "id": 1,
+            "name": "精选页",
+            "parentId": null,
+            "orgId": 1,
+            "weight": 100,
+            "status": "ACTIVE",
+            "createdAt": "2026-05-15T10:00:00.000Z",
+            "updatedAt": "2026-05-15T10:00:00.000Z",
+            "deletedAt": null
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+### GET `/agent/featured`
+用途：获取首页精选智能体，最多返回 5 条。
+
+规则：
+- 仅返回 `isFeatured = true` 且 `approvalStatus = APPROVED` 的智能体
+- 可见范围为：
+  - `PUBLIC`
+  - 当前用户组织下的 `ORG_VISIBLE`
+
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/agent/featured" -H "Authorization: Bearer <token>"
+```
+
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "title": "标准教案生成器",
+      "isFeatured": true,
+      "visibility": "PUBLIC",
+      "approvalStatus": "APPROVED",
+      "updatedAt": "2026-05-15T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+### GET `/agent/my`
+用途：获取当前登录用户创建的智能体列表。
+
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/agent/my" -H "Authorization: Bearer <token>"
+```
+
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 17,
+      "title": "11231231test",
+      "description": "测试组织可见智能体",
+      "iconUrl": "Document",
+      "systemPrompt": "你是一个测试助手",
+      "welcomeMsg": null,
+      "formConfig": null,
+      "model": "deepseek-v4-flash",
+      "enableWebSearch": false,
+      "enableWebParse": false,
+      "enableDeepThink": false,
+      "enableFileUpload": false,
+      "enableKnowledgeBase": false,
+      "creatorId": 4,
+      "orgId": 1,
       "visibility": "ORG_VISIBLE",
       "approvalStatus": "PENDING",
-      "enableWebSearch": true,
-      "enableWebParse": true,
-      "enableDeepThink": true,
-      "enableFileUpload": true,
-      "enableKnowledgeBase": false,
-      "categories": [{ "id": 10, "agentId": 4, "categoryId": 1 }]
+      "isFeatured": false,
+      "status": "ACTIVE",
+      "createdAt": "2026-05-15T09:13:51.097Z",
+      "updatedAt": "2026-05-15T09:13:53.008Z",
+      "deletedAt": null,
+      "categories": [
+        {
+          "id": 18,
+          "agentId": 17,
+          "categoryId": 5,
+          "status": "ACTIVE",
+          "createdAt": "2026-05-15T09:13:51.097Z",
+          "updatedAt": "2026-05-15T09:13:51.097Z",
+          "deletedAt": null
+        }
+      ]
     }
   ]
 }
 ```
 
 ### GET `/agent/:id`
+用途：获取单个智能体详情。
+
+说明：
+- 当前实现按 `id` 直接查询，返回时包含 `categories`
+- 当前接口本身没有额外做“是否有权查看该智能体”的校验
+
 请求示例：
 ```bash
-curl -X GET "http://localhost:3000/agent/4" -H "Authorization: Bearer <token>"
+curl -X GET "http://localhost:3000/agent/17" -H "Authorization: Bearer <token>"
 ```
+
 成功响应示例：
 ```json
 {
   "success": true,
   "data": {
-    "id": 4,
-    "title": "联通性测试Agent",
-    "systemPrompt": "你是一个测试助
+    "id": 17,
+    "title": "11231231test",
+    "description": "测试组织可见智能体",
+    "iconUrl": "Document",
+    "systemPrompt": "你是一个测试助手",
+    "welcomeMsg": null,
+    "formConfig": null,
     "model": "deepseek-v4-flash",
-    "enableWebSearch": true,
-    "enableWebParse": true,
-    "enableDeepThink": true,
-    "enableFileUpload": true,
-    "enableKnowledgeBase": false
+    "enableWebSearch": false,
+    "enableWebParse": false,
+    "enableDeepThink": false,
+    "enableFileUpload": false,
+    "enableKnowledgeBase": false,
+    "creatorId": 4,
+    "orgId": 1,
+    "visibility": "ORG_VISIBLE",
+    "approvalStatus": "PENDING",
+    "isFeatured": false,
+    "status": "ACTIVE",
+    "createdAt": "2026-05-15T09:13:51.097Z",
+    "updatedAt": "2026-05-15T09:13:53.008Z",
+    "deletedAt": null,
+    "categories": [
+      {
+        "id": 18,
+        "agentId": 17,
+        "categoryId": 5,
+        "status": "ACTIVE",
+        "createdAt": "2026-05-15T09:13:51.097Z",
+        "updatedAt": "2026-05-15T09:13:51.097Z",
+        "deletedAt": null
+      }
+    ]
   }
 }
 ```
 
 ### POST `/agent/create`
+用途：创建一个新的智能体。
+
+字段说明：
+- 必填：
+  - `title`
+  - `systemPrompt`
+- 可选：
+  - `description`
+  - `iconUrl`
+  - `welcomeMsg`
+  - `formConfig`
+  - `model`
+  - `enableWebSearch`
+  - `enableWebParse`
+  - `enableDeepThink`
+  - `enableFileUpload`
+  - `enableKnowledgeBase`
+  - `visibility`
+  - `categoryId`
+
+创建规则：
+- `creatorId` 固定为当前登录用户
+- `orgId` 固定取当前登录用户的 `orgId`
+- 若 `visibility = PRIVATE`，则 `approvalStatus = APPROVED`
+- 若 `visibility != PRIVATE`：
+  - `SUPER_ADMIN` 创建后直接 `APPROVED`
+  - 其他角色创建后为 `PENDING`
+- 若传了 `categoryId`，会同步创建一条分类关联
+
 请求示例：
 ```json
 {
-  "title": "微积分高手
+  "title": "微积分高手",
   "description": "帮助讲解微积分题",
-  "systemPrompt": "你是一名数学老师",
-  "welcomeMsg": "你好",
+  "systemPrompt": "你是一名数学老师，请循序渐进讲解微积分问题。",
+  "welcomeMsg": "你好，我可以帮你拆解微积分题目。",
   "iconUrl": "Document",
   "categoryId": 1,
   "model": "deepseek-v4-flash",
@@ -211,94 +403,180 @@ curl -X GET "http://localhost:3000/agent/4" -H "Authorization: Bearer <token>"
   "visibility": "PRIVATE"
 }
 ```
+
 成功响应示例：
 ```json
 {
   "success": true,
   "data": {
-    "id": 9,
-    "title": "微积分高手
+    "id": 18,
+    "title": "微积分高手",
+    "description": "帮助讲解微积分题",
+    "iconUrl": "Document",
+    "systemPrompt": "你是一名数学老师，请循序渐进讲解微积分问题。",
+    "welcomeMsg": "你好，我可以帮你拆解微积分题目。",
+    "formConfig": null,
+    "model": "deepseek-v4-flash",
+    "enableWebSearch": true,
+    "enableWebParse": false,
+    "enableDeepThink": true,
+    "enableFileUpload": true,
+    "enableKnowledgeBase": false,
+    "creatorId": 4,
+    "orgId": 1,
     "visibility": "PRIVATE",
     "approvalStatus": "APPROVED",
-    "model": "deepseek-v4-flash"
+    "isFeatured": false,
+    "status": "ACTIVE",
+    "createdAt": "2026-05-15T10:20:00.000Z",
+    "updatedAt": "2026-05-15T10:20:00.000Z",
+    "deletedAt": null
   }
 }
 ```
 
 ### POST `/agent/update/:id`
+用途：更新智能体内容、能力开关、可见性或分类。
+
+字段说明：
+- 可更新字段：
+  - `title`
+  - `description`
+  - `iconUrl`
+  - `systemPrompt`
+  - `welcomeMsg`
+  - `formConfig`
+  - `model`
+  - `visibility`
+  - `status`
+  - `enableWebSearch`
+  - `enableWebParse`
+  - `enableDeepThink`
+  - `enableFileUpload`
+  - `enableKnowledgeBase`
+  - `categoryId`
+
+更新规则：
+- 仅创建者本人或 `SUPER_ADMIN` 可以修改
+- 若本次将 `visibility` 更新为 `PUBLIC` 或 `ORG_VISIBLE`，后端会将 `approvalStatus` 重置为 `PENDING`
+- 若本次将 `visibility` 更新为 `PRIVATE`，后端会将 `approvalStatus` 改为 `APPROVED`
+- 若传了 `categoryId`，后端会先删除该智能体现有关联，再创建一条新的分类关联
+
 请求示例：
 ```json
-{ "description": "更新后的简 "enableWebParse": true }
+{
+  "description": "更新后的简介",
+  "enableWebParse": true,
+  "visibility": "ORG_VISIBLE",
+  "categoryId": 5
+}
 ```
-发布请求示例：
-```json
-{ "visibility": "ORG_VISIBLE" }
-```
+
 成功响应示例：
 ```json
 {
   "success": true,
   "data": {
-    "id": 9,
+    "id": 18,
+    "title": "微积分高手",
+    "description": "更新后的简介",
     "visibility": "ORG_VISIBLE",
     "approvalStatus": "PENDING",
-    "enableWebParse": true
+    "enableWebParse": true,
+    "updatedAt": "2026-05-15T10:30:00.000Z"
   }
 }
 ```
-失败响应示例（越权）
-```json
-{ "statusCode": 403, "message": "无权限修改该智能体 "error": "Forbidden" }
-```
 
-### POST `/agent/optimize`
-用途：根据用户输入的提示词文本，调用后端大模型进行一键优化，返回更清晰、简洁的提示词
-请求示例：
-```json
-{ "text": "你是一名数学老师，帮助学生学习代}
-```
-成功响应示例：
+失败响应示例（无权限或不存在）：
 ```json
 {
-  "success": true,
-  "data": {
-    "optimizedText": "你是数学教师，需以清晰、简洁的方式帮助学生理解代数概念
-  }
+  "statusCode": 403,
+  "message": "无权限修改该智能体",
+  "error": "Forbidden"
 }
-```
-
-### GET `/agent/discover`
-请求示例：
-```bash
-curl -X GET "http://localhost:3000/agent/discover?categoryId=1" -H "Authorization: Bearer <token>"
-```
-成功响应示例：
-```json
-{ "success": true, "data": [{ "id": 1, "title": "教案生成专家" }] }
 ```
 
 ### DELETE `/agent/:id`
+用途：删除一个智能体。
+
+删除规则：
+- 仅创建者本人或 `SUPER_ADMIN` 可以删除
+- 会先删除该智能体的分类关联
+- 会将引用该智能体的会话 `conversation.agentId` 置空
+- 最后物理删除智能体记录
+
 请求示例：
 ```bash
-curl -X DELETE "http://localhost:3000/agent/9" -H "Authorization: Bearer <token>"
-```
-成功响应示例：
-```json
-{ "success": true }
-```
-失败响应示例（越权）
-```json
-{ "statusCode": 403, "message": "无权限删除该智能体 "error": "Forbidden" }
+curl -X DELETE "http://localhost:3000/agent/18" -H "Authorization: Bearer <token>"
 ```
 
-### GET `/agent/featured`
-请求示例：
-```bash
-curl -X GET "http://localhost:3000/agent/featured" -H "Authorization: Bearer <token>"
-```
 成功响应示例：
 ```json
-{ "success": true, "data": [{ "id": 1, "title": "教案生成专家", "isFeatured": true }] }
+{
+  "success": true
+}
+```
+
+失败响应示例（无权限）：
+```json
+{
+  "statusCode": 403,
+  "message": "无权限删除该智能体",
+  "error": "Forbidden"
+}
+```
+
+失败响应示例（不存在）：
+```json
+{
+  "statusCode": 404,
+  "message": "智能体不存在",
+  "error": "Not Found"
+}
+```
+
+### POST `/agent/optimize`
+用途：根据用户输入的提示词文本，调用后端大模型进行一键优化。
+
+请求体：
+```json
+{
+  "text": "你是一名数学老师，帮助学生学习代数。"
+}
+```
+
+校验规则：
+- `text` 必须存在
+- `text` 必须是字符串
+- 去除首尾空格后不能为空
+
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "optimizedText": "你是一名擅长基础教学的数学老师，请用清晰、循序渐进的方式帮助学生理解代数概念，并结合简单例题进行讲解。"
+  }
+}
+```
+
+失败响应示例（参数为空）：
+```json
+{
+  "statusCode": 400,
+  "message": "请输入要优化的提示词",
+  "error": "Bad Request"
+}
+```
+
+失败响应示例（模型调用失败）：
+```json
+{
+  "statusCode": 400,
+  "message": "大模型优化失败，请稍后重试",
+  "error": "Bad Request"
+}
 ```
 
 ---

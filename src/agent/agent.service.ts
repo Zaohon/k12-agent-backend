@@ -1,23 +1,9 @@
 import { ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 
-const PUBLIC_ORG_NAME = '\u516c\u5171\u7f51\u70b9 (\u9ed8\u8ba4)';
-
 @Injectable()
 export class AgentService implements OnModuleInit {
   constructor(private prisma: PrismaService) {}
-
-  private async ensureCanonicalPublicOrg() {
-    let publicOrg = await this.prisma.organization.findUnique({
-      where: { orgName: PUBLIC_ORG_NAME },
-    });
-    if (!publicOrg) {
-      publicOrg = await this.prisma.organization.create({
-        data: { orgName: PUBLIC_ORG_NAME },
-      });
-    }
-    return publicOrg;
-  }
 
   private async ensurePublicOrg() {
     let publicOrg = await this.prisma.organization.findUnique({
@@ -32,29 +18,14 @@ export class AgentService implements OnModuleInit {
   }
 
   private async ensureSystemAdminBoundToPublicOrg() {
-    const publicOrg = await this.ensureCanonicalPublicOrg();
-    let admin = await this.prisma.user.findUnique({ where: { username: 'system_admin' } });
-
-    if (!admin) {
-      admin = await this.prisma.user.create({
-        data: {
-          username: 'system_admin',
-          passwordHash: 'dummy',
-          role: 'SUPER_ADMIN',
-          orgId: publicOrg.id,
-        },
-      });
-      return admin;
-    }
-
-    if (admin.orgId !== publicOrg.id) {
-      admin = await this.prisma.user.update({
-        where: { id: admin.id },
-        data: { orgId: publicOrg.id },
-      });
-    }
-
-    return admin;
+    return this.prisma.user.findFirst({
+      where: {
+        role: 'SUPER_ADMIN',
+        deletedAt: null,
+        status: 'ACTIVE',
+      },
+      orderBy: { id: 'asc' },
+    });
   }
 
   private normalizeAgentConfigForCreate(data: any) {
@@ -105,6 +76,11 @@ export class AgentService implements OnModuleInit {
     const admin = await this.ensureSystemAdminBoundToPublicOrg();
     const count = await this.prisma.agent.count();
     if (count === 0) {
+      if (!admin) {
+        console.log('Skipped initial agent seed because no active SUPER_ADMIN user exists.');
+        return;
+      }
+
       const agents = [
         {
           title: '标准教案生成器',
