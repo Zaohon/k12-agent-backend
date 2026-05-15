@@ -1,4 +1,4 @@
-import { BadRequestException, Controller, Get, Post, Body, Req, UseGuards, Param, ParseIntPipe, Query, Delete } from '@nestjs/common';
+﻿import { BadRequestException, Controller, Get, Post, Body, Req, UseGuards, Param, ParseIntPipe, Query, Delete } from '@nestjs/common';
 import { AgentService } from './agent.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -10,8 +10,8 @@ export class AgentController {
   @Get('discover')
   async getDiscoverableAgents(@Req() req: any, @Query('categoryId') categoryId?: string) {
     const agents = await this.agentService.getDiscoverableAgents(
-      req.user, 
-      categoryId ? parseInt(categoryId) : undefined
+      req.user,
+      categoryId ? parseInt(categoryId) : undefined,
     );
     return { success: true, data: agents };
   }
@@ -27,7 +27,7 @@ export class AgentController {
     const agents = await this.agentService.getMyAgents(req.user.id);
     return {
       success: true,
-      data: agents
+      data: agents,
     };
   }
 
@@ -36,7 +36,7 @@ export class AgentController {
     const agent = await this.agentService.getAgentById(id);
     return {
       success: true,
-      data: agent
+      data: agent,
     };
   }
 
@@ -45,7 +45,7 @@ export class AgentController {
     const agent = await this.agentService.updateAgent(req.user, id, body);
     return {
       success: true,
-      data: agent
+      data: agent,
     };
   }
 
@@ -54,17 +54,34 @@ export class AgentController {
     const agent = await this.agentService.createAgent(req.user, body);
     return {
       success: true,
-      data: agent
+      data: agent,
     };
   }
 
   @Post('optimize')
   async optimizePrompt(@Body() body: { text?: string }) {
     if (!body?.text || typeof body.text !== 'string') {
-      throw new BadRequestException('请输入要优化的文本');
+      throw new BadRequestException('请输入要优化的提示词');
     }
 
-    const prompt = `请将以下提示词优化为更清晰、简洁、表达更自然，并保留原意：\n\n${body.text}`;
+    const rawText = body.text.trim();
+    if (!rawText) {
+      throw new BadRequestException('请输入要优化的提示词');
+    }
+
+    const prompt = `请将下面的提示词做“一键优化”，用于直接给大模型执行。
+
+优化要求：
+1. 保留原始意图，不改变任务目标；
+2. 表达更清晰、具体、可执行，避免空泛措辞；
+3. 补齐必要约束：输出格式、边界条件、风格要求；
+4. 删除冗余与重复内容，避免歧义；
+5. 输出为中文，仅返回“优化后的提示词”最终版本，不要解释过程；
+6. 严格控制长度：不超过220字。
+
+待优化提示词：
+${rawText}`;
+
     const optimizedText = await this.callAI(prompt);
 
     return {
@@ -79,7 +96,7 @@ export class AgentController {
   async deleteAgent(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
     await this.agentService.deleteAgent(req.user, id);
     return {
-      success: true
+      success: true,
     };
   }
 
@@ -97,7 +114,11 @@ export class AgentController {
       body: JSON.stringify({
         model,
         messages: [
-          { role: 'system', content: '你是一个提示词优化助手。' },
+          {
+            role: 'system',
+            content:
+              '你是资深提示词工程师。你的任务是把用户提示词改写为更高质量版本，并严格遵守用户给出的长度限制。',
+          },
           { role: 'user', content: inputText },
         ],
         temperature: 0.3,
