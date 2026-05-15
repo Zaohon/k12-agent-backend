@@ -551,8 +551,8 @@ curl -X GET "http://localhost:3000/approval/pending" -H "Authorization: Bearer <
 ### GET `/category/list`
 用途：获取分类列表（所有已登录用户可用）。
 说明：
-- `SUPER_ADMIN`：返回其管理的公共组织分类（当前为 `orgId=公共组织`）。
-- 其他登录用户：返回“公共分类（`orgId=null`）+ 当前组织分类”。
+- `SUPER_ADMIN`：只返回公共组织（`orgId=1`）分类。
+- `SCHOOL_ADMIN` / 普通用户：只返回当前组织（`orgId=当前用户orgId`）分类。
 
 请求示例：
 ```bash

@@ -37,31 +37,25 @@ export class CategoryService implements OnModuleInit {
   }
 
   async list(currentUser: { id: number; role: string; orgId?: number }) {
-    if (currentUser.role === 'SUPER_ADMIN') {
-      const publicOrgId =
-        currentUser.orgId ??
-        (
-          await this.prisma.organization.findUnique({
-            where: { orgName: '公共网点 (默认)' },
-            select: { id: true },
-          })
-        )?.id;
+    const effectiveOrgId =
+      currentUser.role === 'SUPER_ADMIN'
+        ? (
+            currentUser.orgId ??
+            (
+              await this.prisma.organization.findUnique({
+                where: { orgName: '公共网点 (默认)' },
+                select: { id: true },
+              })
+            )?.id
+          )
+        : currentUser.orgId;
 
-      if (!publicOrgId) {
-        throw new ForbiddenException('未找到公共组织，无法获取分类');
-      }
-
-      return this.prisma.category.findMany({
-        where: { deletedAt: null, orgId: publicOrgId },
-        orderBy: { weight: 'desc' },
-      });
+    if (!effectiveOrgId) {
+      throw new ForbiddenException('当前账号未绑定组织，无法获取分类');
     }
 
     return this.prisma.category.findMany({
-      where: {
-        deletedAt: null,
-        OR: [{ orgId: null }, { orgId: currentUser.orgId ?? -1 }],
-      },
+      where: { deletedAt: null, orgId: effectiveOrgId },
       orderBy: { weight: 'desc' },
     });
   }
