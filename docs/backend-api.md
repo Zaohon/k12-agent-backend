@@ -1085,3 +1085,35 @@ curl -X GET "http://localhost:3000/knowledge/storage/stats" -H "Authorization: B
 ```
 
 7. 审核端：`GET /approval/pending` + `POST /approval/review/:id`
+
+---
+
+## 11) 枚举定义（约定）
+
+### 用户身份（role）
+- `SUPER_ADMIN`：超级管理员（系统级）
+- `SCHOOL_ADMIN`：组织管理员
+- `TEACHER`：老师
+- `STUDENT`：学生
+- `PARENT`：家长
+
+### 身份映射关系（批量导入时）
+- `学生` -> `STUDENT`
+- `老师` -> `TEACHER`
+- `家长` -> `PARENT`
+- `管理员` -> `SCHOOL_ADMIN`
+- 未匹配值默认 -> `STUDENT`
+
+### Agent 可见性（visibility）
+- `PRIVATE`：仅自己可见
+- `ORG_VISIBLE`：组织内可见
+- `PUBLIC`：全平台可见（需审批逻辑）
+
+### Agent 审批状态（approvalStatus）
+- `PENDING`：待审批
+- `APPROVED`：已通过
+- `REJECTED`：已拒绝
+
+### 通用状态（status，多个表共用）
+- `ACTIVE`：有效
+- `DELETED`：逻辑删除（常配合 `deletedAt`）
