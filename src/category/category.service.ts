@@ -3,7 +3,21 @@ import { PrismaService } from '../prisma.service';
 
 @Injectable()
 export class CategoryService implements OnModuleInit {
+  private static readonly ORG_RESERVED_CATEGORY_NAMES = ['精选页', '推荐页', '推荐'];
+  private static readonly PROTECTED_CATEGORY_NAMES = ['精选页', '推荐页'];
+
   constructor(private prisma: PrismaService) {}
+
+  private isOrgReservedCategory(category: { name: string; orgId: number | null }) {
+    return (
+      category.orgId !== null &&
+      CategoryService.ORG_RESERVED_CATEGORY_NAMES.includes((category.name || '').trim())
+    );
+  }
+
+  private isProtectedCategoryName(name: string) {
+    return CategoryService.PROTECTED_CATEGORY_NAMES.includes((name || '').trim());
+  }
 
   async onModuleInit() {
     const count = await this.prisma.category.count();
@@ -252,10 +266,18 @@ export class CategoryService implements OnModuleInit {
 
     const categoryOrgId =
       currentUser.role === 'SUPER_ADMIN' ? (data.orgId ?? null) : (currentUser.orgId ?? null);
+    const categoryName = String(data.name || '').trim();
+
+    if (!categoryName) {
+      throw new BadRequestException('分类名称不能为空');
+    }
+    if (this.isProtectedCategoryName(categoryName)) {
+      throw new ForbiddenException('“精选页/推荐页”是系统保留名称，禁止手动创建');
+    }
 
     return this.prisma.category.create({
       data: {
-        name: data.name,
+        name: categoryName,
         weight: data.weight ?? 0,
         parentId: data.parentId ?? null,
         orgId: categoryOrgId,
@@ -282,6 +304,24 @@ export class CategoryService implements OnModuleInit {
       }
     }
 
+    if (
+      this.isOrgReservedCategory({ name: current.name, orgId: current.orgId }) &&
+      Object.prototype.hasOwnProperty.call(data, 'name') &&
+      String(data.name).trim() !== current.name
+    ) {
+      throw new ForbiddenException('“精选页/推荐页”是组织保留分类，不可改名');
+    }
+
+    if (Object.prototype.hasOwnProperty.call(data, 'name')) {
+      const nextName = String(data.name || '').trim();
+      if (!nextName) {
+        throw new BadRequestException('分类名称不能为空');
+      }
+      if (this.isProtectedCategoryName(nextName) && nextName !== current.name) {
+        throw new ForbiddenException('“精选页/推荐页”是系统保留名称，禁止改名为该名称');
+      }
+    }
+
     const nextData = { ...data };
     if (currentUser.role !== 'SUPER_ADMIN') {
       delete nextData.orgId;
@@ -303,6 +343,10 @@ export class CategoryService implements OnModuleInit {
       if (!currentUser.orgId || current.orgId !== currentUser.orgId) {
         throw new ForbiddenException('只能操作当前组织分类');
       }
+    }
+
+    if (this.isOrgReservedCategory({ name: current.name, orgId: current.orgId })) {
+      throw new ForbiddenException('“精选页/推荐页”是组织保留分类，不可删除');
     }
 
     return this.prisma.category.update({
