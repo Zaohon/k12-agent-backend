@@ -521,13 +521,31 @@ curl -X GET "http://localhost:3000/org/5/users" -H "Authorization: Bearer <token
 ## 7) 审批 Approval
 
 ### GET `/approval/pending`
+用途：获取审批列表（按当前用户所属组织返回该组织下智能体，包含所有 `approvalStatus`）。
+规则：
+- `SUPER_ADMIN`：只看公共组织（或其绑定组织）下智能体；
+- `SCHOOL_ADMIN`：只看当前组织下智能体；
+- 其他角色无权限。
+
 请求示例：
 ```bash
 curl -X GET "http://localhost:3000/approval/pending" -H "Authorization: Bearer <token>"
 ```
 成功响应示例：
 ```json
-{ "success": true, "data": [{ "id": 9, "title": "微积分高手 "approvalStatus": "PENDING" }] }
+{
+  "success": true,
+  "data": [
+    {
+      "id": 5,
+      "title": "东西",
+      "approvalStatus": "APPROVED",
+      "orgId": 1,
+      "creator": { "username": "system_admin", "role": "SUPER_ADMIN" },
+      "organization": { "orgName": "公共网点 (默认)" }
+    }
+  ]
+}
 ```
 
 ### POST `/approval/review/:id`
