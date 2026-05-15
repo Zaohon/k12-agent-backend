@@ -398,17 +398,35 @@ data: [DONE]
 ## 6) 组织 Org
 
 ### GET `/org/list`
+用途：获取组织列表（仅 `SUPER_ADMIN`）。
+
 请求示例：
 ```bash
 curl -X GET "http://localhost:3000/org/list" -H "Authorization: Bearer <token>"
 ```
 成功响应示例：
 ```json
-{ "success": true, "data": [{ "id": 1, "orgName": "北京实验学校" }] }
+{
+  "success": true,
+  "data": [
+    {
+      "id": 1,
+      "orgName": "公共网点 (默认)",
+      "contactInfo": null,
+      "status": "ACTIVE",
+      "createdAt": "2026-04-17T02:10:32.355Z",
+      "updatedAt": "2026-04-17T02:10:32.355Z",
+      "deletedAt": null,
+      "_count": { "users": 5, "agents": 1 },
+      "users": []
+    }
+  ]
+}
 ```
 
 ### POST `/org/create`
-用途：创建组织。创建成功后，后端会自动初始化该组织下两个保留分类：`精选页`、`推荐`（不可删除、不可改名）。
+用途：创建组织（仅 `SUPER_ADMIN`）。
+说明：创建成功后，会自动创建该组织保留分类 `精选页`、`推荐页`（不可删除、不可改名）。
 
 请求示例：
 ```json
@@ -416,42 +434,86 @@ curl -X GET "http://localhost:3000/org/list" -H "Authorization: Bearer <token>"
 ```
 成功响应示例：
 ```json
-{ "success": true, "data": { "id": 2, "orgName": "上海示范学校" } }
+{
+  "success": true,
+  "data": {
+    "id": 5,
+    "orgName": "上海示范学校",
+    "contactInfo": null,
+    "status": "ACTIVE",
+    "createdAt": "2026-05-15T06:15:42.996Z",
+    "updatedAt": "2026-05-15T06:15:42.996Z",
+    "deletedAt": null
+  }
+}
 ```
 
 ### POST `/org/admin`
+用途：给指定组织创建组织管理员（仅 `SUPER_ADMIN`）。
+
 请求示例：
 ```json
-{ "orgId": 2, "username": "school_admin", "password": "123456" }
+{ "orgId": 5, "username": "org_admin_5", "password": "12345678" }
 ```
 成功响应示例：
 ```json
-{ "success": true, "data": { "id": 11, "username": "school_admin", "role": "SCHOOL_ADMIN" } }
+{
+  "success": true,
+  "data": {
+    "id": 15,
+    "username": "org_admin_5",
+    "phone": null,
+    "role": "SCHOOL_ADMIN",
+    "orgId": 5,
+    "status": "ACTIVE",
+    "createdAt": "2026-05-15T06:15:43.209Z"
+  }
+}
 ```
 
 ### GET `/org/:orgId/users`
+用途：获取组织下用户列表（仅 `SUPER_ADMIN`）。
+
 请求示例：
 ```bash
-curl -X GET "http://localhost:3000/org/2/users" -H "Authorization: Bearer <token>"
+curl -X GET "http://localhost:3000/org/5/users" -H "Authorization: Bearer <token>"
 ```
 成功响应示例：
 ```json
-{ "success": true, "data": [{ "id": 21, "username": "stu001", "role": "STUDENT" }] }
+{
+  "success": true,
+  "data": [
+    {
+      "id": 15,
+      "username": "org_admin_5",
+      "role": "SCHOOL_ADMIN",
+      "createdAt": "2026-05-15T06:15:43.209Z"
+    },
+    {
+      "id": 16,
+      "username": "stu_5_1",
+      "role": "STUDENT",
+      "createdAt": "2026-05-15T06:15:43.338Z"
+    }
+  ]
+}
 ```
 
 ### POST `/org/:orgId/users/batch`
+用途：批量创建组织用户（仅 `SUPER_ADMIN`）。
+
 请求示例：
 ```json
 {
   "users": [
-    { "username": "stu001", "password": "123456", "role": "学生" },
-    { "username": "tea001", "password": "123456", "role": "老师" }
+    { "username": "stu_5_1", "password": "12345678", "role": "学生" },
+    { "username": "tea_5_1", "password": "12345678", "role": "老师" }
   ]
 }
 ```
 成功响应示例：
 ```json
-{ "success": true, "data": { "total": 2, "created": 2, "failed": 0 } }
+{ "success": true, "data": { "count": 2 } }
 ```
 
 ---
@@ -487,44 +549,112 @@ curl -X GET "http://localhost:3000/approval/pending" -H "Authorization: Bearer <
 ## 8) 分类 Category
 
 ### GET `/category/list`
+用途：获取分类列表（所有已登录用户可用）。
+说明：
+- `SUPER_ADMIN`：返回其管理的公共组织分类（当前为 `orgId=公共组织`）。
+- 其他登录用户：返回“公共分类（`orgId=null`）+ 当前组织分类”。
+
 请求示例：
 ```bash
-curl -X GET "http://localhost:3000/category/list"
+curl -X GET "http://localhost:3000/category/list" -H "Authorization: Bearer <token>"
 ```
 成功响应示例：
 ```json
-{ "success": true, "data": [{ "id": 1, "name": "理科实验}] }
+{
+  "success": true,
+  "data": [
+    {
+      "id": 26,
+      "name": "精选页",
+      "parentId": null,
+      "orgId": 5,
+      "weight": 100,
+      "status": "ACTIVE",
+      "createdAt": "2026-05-15T06:15:43.023Z",
+      "updatedAt": "2026-05-15T06:15:43.023Z",
+      "deletedAt": null
+    }
+  ]
+}
 ```
 
 ### POST `/category/create`
+用途：创建分类（`SUPER_ADMIN` / `SCHOOL_ADMIN`）。
+
 请求示例：
 ```json
-{ "name": "AI 写作", "weight": 5 }
+{ "name": "分类联调_1710000000", "weight": 12 }
 ```
 成功响应示例：
 ```json
-{ "success": true, "data": { "id": 12, "name": "AI 写作" } }
+{
+  "success": true,
+  "data": {
+    "id": 28,
+    "name": "分类联调_1710000000",
+    "parentId": null,
+    "orgId": null,
+    "weight": 12,
+    "status": "ACTIVE",
+    "createdAt": "2026-05-15T06:19:37.133Z",
+    "updatedAt": "2026-05-15T06:19:37.133Z",
+    "deletedAt": null
+  }
+}
+```
+失败响应示例（禁止创建保留名称）：
+```json
+{
+  "statusCode": 403,
+  "message": "“精选页/推荐页”是系统保留名称，禁止手动创建",
+  "error": "Forbidden"
+}
 ```
 
 ### PATCH `/category/:id`
+用途：修改分类（`SUPER_ADMIN` / `SCHOOL_ADMIN`，且组织管理员只能改本组织分类）。
+
 请求示例：
 ```json
-{ "name": "AI 写作助手", "weight": 8 }
+{ "name": "分类联调_已改名", "weight": 15 }
 ```
 成功响应示例：
 ```json
-{ "success": true, "data": { "id": 12, "name": "AI 写作助手" } }
+{
+  "success": true,
+  "data": {
+    "id": 28,
+    "name": "分类联调_已改名",
+    "parentId": null,
+    "orgId": null,
+    "weight": 15,
+    "status": "ACTIVE",
+    "createdAt": "2026-05-15T06:19:37.133Z",
+    "updatedAt": "2026-05-15T06:19:37.349Z",
+    "deletedAt": null
+  }
+}
 ```
 失败响应示例（修改组织保留分类名称）：
 ```json
 {
   "statusCode": 403,
-  "message": "“精选页/推荐”是组织保留分类，不可改名",
+  "message": "“精选页/推荐页”是组织保留分类，不可改名",
+  "error": "Forbidden"
+}
+```
+失败响应示例（禁止改名为保留名称）：
+```json
+{
+  "statusCode": 403,
+  "message": "“精选页/推荐页”是系统保留名称，禁止改名为该名称",
   "error": "Forbidden"
 }
 ```
 
 ### DELETE `/category/:id`
+用途：删除分类（逻辑删除；`SUPER_ADMIN` / `SCHOOL_ADMIN`）。
+
 请求示例：
 ```bash
 curl -X DELETE "http://localhost:3000/category/12" -H "Authorization: Bearer <token>"
@@ -537,15 +667,17 @@ curl -X DELETE "http://localhost:3000/category/12" -H "Authorization: Bearer <to
 ```json
 {
   "statusCode": 403,
-  "message": "“精选页/推荐”是组织保留分类，不可删除",
+  "message": "“精选页/推荐页”是组织保留分类，不可删除",
   "error": "Forbidden"
 }
 ```
 
 ### GET `/category/:id/agents`
+用途：获取某分类下的智能体列表。
+
 请求示例：
 ```bash
-curl -X GET "http://localhost:3000/category/3/agents" -H "Authorization: Bearer <token>"
+curl -X GET "http://localhost:3000/category/28/agents" -H "Authorization: Bearer <token>"
 ```
 成功响应示例：
 ```json
@@ -553,22 +685,34 @@ curl -X GET "http://localhost:3000/category/3/agents" -H "Authorization: Bearer 
   "success": true,
   "data": [
     {
-      "id": 23,
-      "title": "作文批改助手",
-      "description": "帮助学生提升写作能力",
-      "iconUrl": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/system/agent-logo/book-icon.png",
+      "id": 1,
+      "title": "标准教案生成器",
+      "description": "一键生成包含三维目标与板书设计的高质量教案，适配国内教研标准。",
+      "iconUrl": "Document",
+      "systemPrompt": "你是一位资深高级教师与教研员……",
+      "formConfig": "[{\"key\":\"subject\",\"label\":\"教学科目与学段\"}]",
       "model": "deepseek-v4-flash",
+      "enableWebSearch": false,
+      "enableWebParse": false,
+      "enableDeepThink": false,
+      "enableFileUpload": false,
+      "enableKnowledgeBase": false,
+      "creatorId": 1,
+      "orgId": null,
       "visibility": "PUBLIC",
-      "approvalStatus": "APPROVED"
+      "approvalStatus": "APPROVED",
+      "status": "ACTIVE"
     }
   ]
 }
 ```
 
 ### DELETE `/category/:id/agents/:agentId`
+用途：从分类中移除某个智能体（逻辑删除关联）。
+
 请求示例：
 ```bash
-curl -X DELETE "http://localhost:3000/category/3/agents/23" -H "Authorization: Bearer <token>"
+curl -X DELETE "http://localhost:3000/category/28/agents/1" -H "Authorization: Bearer <token>"
 ```
 成功响应示例：
 ```json
@@ -576,9 +720,15 @@ curl -X DELETE "http://localhost:3000/category/3/agents/23" -H "Authorization: B
 ```
 
 ### PATCH `/category/:id/agents/:agentId`
+用途：更新分类-智能体关系（移动分类或更新关系状态）。
+
 请求示例：
 ```json
 { "targetCategoryId": 5 }
+```
+或：
+```json
+{ "status": "ACTIVE" }
 ```
 成功响应示例：
 ```json
@@ -586,9 +736,11 @@ curl -X DELETE "http://localhost:3000/category/3/agents/23" -H "Authorization: B
 ```
 
 ### PUT `/category/:id/agents`
+用途：覆盖设置某分类下的智能体列表（新增/移除关联）。
+
 请求示例：
 ```json
-{ "agentIds": [23, 45, 67] }
+{ "agentIds": [1, 2] }
 ```
 成功响应示例：
 ```json
