@@ -1,61 +1,61 @@
-# K12 Agent Backend API 文档（含输入输出示例）
+﻿# K12 Agent Backend API 鏂囨。锛堝惈杈撳叆杈撳嚭绀轰緥锛?
 
-更新时间：2026-05-11  
-适用项目：`k12-agent-backend`
+鏇存柊鏃堕棿锛?026-05-11  
+閫傜敤椤圭洰锛歚k12-agent-backend`
 
-## 通用说明
+## 閫氱敤璇存槑
 
-- Base URL：`http://localhost:3000`
-- 鉴权：除特殊说明外，均需 `Authorization: Bearer <token>`
-- 成功返回通常为：
+- Base URL锛歚http://localhost:3000`
+- 閴存潈锛氶櫎鐗规畩璇存槑澶栵紝鍧囬渶 `Authorization: Bearer <token>`
+- 鎴愬姛杩斿洖閫氬父涓猴細
 ```json
 { "success": true, "data": {} }
 ```
-- 错误返回通常为：
+- 閿欒杩斿洖閫氬父涓猴細
 ```json
 { "statusCode": 401, "message": "Unauthorized", "error": "Unauthorized" }
 ```
 
 ---
 
-## 1) 健康检查
+## 1) 鍋ュ悍妫€鏌?
 
 ### GET `/`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X GET "http://localhost:3000/"
 ```
-成功响应：
+鎴愬姛鍝嶅簲锛?
 ```json
 "Hello World!"
 ```
 
 ---
 
-## 2) 认证 Auth
+## 2) 璁よ瘉 Auth
 
 ### POST `/auth/sms_send`
-请求示例：
+璇锋眰绀轰緥锛?
 ```json
 { "phone": "17600000000" }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
-{ "success": true, "message": "验证码发送成功" }
+{ "success": true, "message": "楠岃瘉鐮佸彂閫佹垚鍔? }
 ```
-失败响应示例：
+澶辫触鍝嶅簲绀轰緥锛?
 ```json
-{ "statusCode": 401, "message": "缺少手机号", "error": "Unauthorized" }
+{ "statusCode": 401, "message": "缂哄皯鎵嬫満鍙?, "error": "Unauthorized" }
 ```
 
 ### POST `/auth/login`
-用途：短信验证码登录（如果用户已存在则直接登录，否则自动创建学生账号）
+鐢ㄩ€旓細鐭俊楠岃瘉鐮佺櫥褰曪紙濡傛灉鐢ㄦ埛宸插瓨鍦ㄥ垯鐩存帴鐧诲綍锛屽惁鍒欒嚜鍔ㄥ垱寤哄鐢熻处鍙凤級
 
-请求示例：
+璇锋眰绀轰緥锛?
 ```json
 { "phone": "17600000000", "code": "123456" }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 {
   "access_token": "<JWT_TOKEN>",
@@ -69,19 +69,19 @@ curl -X GET "http://localhost:3000/"
   }
 }
 ```
-失败响应示例：
+澶辫触鍝嶅簲绀轰緥锛?
 ```json
-{ "statusCode": 401, "message": "验证码错误", "error": "Unauthorized" }
+{ "statusCode": 401, "message": "楠岃瘉鐮侀敊璇?, "error": "Unauthorized" }
 ```
 
 ### POST `/auth/password-login`
-用途：账号密码登录，可使用用户名或手机号作为账号。
+鐢ㄩ€旓細璐﹀彿瀵嗙爜鐧诲綍锛屽彲浣跨敤鐢ㄦ埛鍚嶆垨鎵嬫満鍙蜂綔涓鸿处鍙枫€?
 
-请求示例：
+璇锋眰绀轰緥锛?
 ```json
 { "account": "17600000000", "password": "Pass12345" }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 {
   "access_token": "<JWT_TOKEN>",
@@ -95,17 +95,17 @@ curl -X GET "http://localhost:3000/"
   }
 }
 ```
-失败响应示例：
+澶辫触鍝嶅簲绀轰緥锛?
 ```json
-{ "statusCode": 401, "message": "账号或密码错误", "error": "Unauthorized" }
+{ "statusCode": 401, "message": "璐﹀彿鎴栧瘑鐮侀敊璇?, "error": "Unauthorized" }
 ```
 
 ### GET `/auth/profile`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X GET "http://localhost:3000/auth/profile" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 {
   "success": true,
@@ -122,39 +122,39 @@ curl -X GET "http://localhost:3000/auth/profile" -H "Authorization: Bearer <toke
 ```
 
 ### POST `/auth/update-password`
-用途：已登录用户修改密码，当前账号已有密码时需提供当前密码；首次设密可直接设置新密码。
+鐢ㄩ€旓細宸茬櫥褰曠敤鎴蜂慨鏀瑰瘑鐮侊紝褰撳墠璐﹀彿宸叉湁瀵嗙爜鏃堕渶鎻愪緵褰撳墠瀵嗙爜锛涢娆¤瀵嗗彲鐩存帴璁剧疆鏂板瘑鐮併€?
 
-请求示例：
+璇锋眰绀轰緥锛?
 ```json
 { "currentPassword": "old-pass-123", "newPassword": "new-pass-123", "confirmPassword": "new-pass-123" }
 ```
-首次设密请求示例：
+棣栨璁惧瘑璇锋眰绀轰緥锛?
 ```json
 { "newPassword": "new-pass-123", "confirmPassword": "new-pass-123" }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 { "success": true }
 ```
 
 ---
 
-## 3) 智能体 Agent
+## 3) 鏅鸿兘浣?Agent
 
 ### GET `/agent/my`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X GET "http://localhost:3000/agent/my" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 {
   "success": true,
   "data": [
     {
       "id": 4,
-      "title": "联通性测试Agent",
-      "description": "接口联通性测试",
+      "title": "鑱旈€氭€ф祴璇旳gent",
+      "description": "鎺ュ彛鑱旈€氭€ф祴璇?,
       "model": "deepseek-v4-flash",
       "visibility": "ORG_VISIBLE",
       "approvalStatus": "PENDING",
@@ -170,18 +170,18 @@ curl -X GET "http://localhost:3000/agent/my" -H "Authorization: Bearer <token>"
 ```
 
 ### GET `/agent/:id`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X GET "http://localhost:3000/agent/4" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 {
   "success": true,
   "data": {
     "id": 4,
-    "title": "联通性测试Agent",
-    "systemPrompt": "你是一个测试助手",
+    "title": "鑱旈€氭€ф祴璇旳gent",
+    "systemPrompt": "浣犳槸涓€涓祴璇曞姪鎵?,
     "model": "deepseek-v4-flash",
     "enableWebSearch": true,
     "enableWebParse": true,
@@ -193,13 +193,13 @@ curl -X GET "http://localhost:3000/agent/4" -H "Authorization: Bearer <token>"
 ```
 
 ### POST `/agent/create`
-请求示例：
+璇锋眰绀轰緥锛?
 ```json
 {
-  "title": "微积分高手",
-  "description": "帮助讲解微积分题",
-  "systemPrompt": "你是一名数学老师",
-  "welcomeMsg": "你好",
+  "title": "寰Н鍒嗛珮鎵?,
+  "description": "甯姪璁茶В寰Н鍒嗛",
+  "systemPrompt": "浣犳槸涓€鍚嶆暟瀛﹁€佸笀",
+  "welcomeMsg": "浣犲ソ",
   "iconUrl": "Document",
   "categoryId": 1,
   "model": "deepseek-v4-flash",
@@ -211,13 +211,13 @@ curl -X GET "http://localhost:3000/agent/4" -H "Authorization: Bearer <token>"
   "visibility": "PRIVATE"
 }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 {
   "success": true,
   "data": {
     "id": 9,
-    "title": "微积分高手",
+    "title": "寰Н鍒嗛珮鎵?,
     "visibility": "PRIVATE",
     "approvalStatus": "APPROVED",
     "model": "deepseek-v4-flash"
@@ -226,15 +226,15 @@ curl -X GET "http://localhost:3000/agent/4" -H "Authorization: Bearer <token>"
 ```
 
 ### POST `/agent/update/:id`
-请求示例：
+璇锋眰绀轰緥锛?
 ```json
-{ "description": "更新后的简介", "enableWebParse": true }
+{ "description": "鏇存柊鍚庣殑绠€浠?, "enableWebParse": true }
 ```
-发布请求示例：
+鍙戝竷璇锋眰绀轰緥锛?
 ```json
 { "visibility": "ORG_VISIBLE" }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 {
   "success": true,
@@ -246,298 +246,299 @@ curl -X GET "http://localhost:3000/agent/4" -H "Authorization: Bearer <token>"
   }
 }
 ```
-失败响应示例（越权）：
+澶辫触鍝嶅簲绀轰緥锛堣秺鏉冿級锛?
 ```json
-{ "statusCode": 403, "message": "无权限修改该智能体", "error": "Forbidden" }
+{ "statusCode": 403, "message": "鏃犳潈闄愪慨鏀硅鏅鸿兘浣?, "error": "Forbidden" }
 ```
 
 ### POST `/agent/optimize`
-用途：根据用户输入的提示词文本，调用后端大模型进行一键优化，返回更清晰、简洁的提示词。
-请求示例：
+鐢ㄩ€旓細鏍规嵁鐢ㄦ埛杈撳叆鐨勬彁绀鸿瘝鏂囨湰锛岃皟鐢ㄥ悗绔ぇ妯″瀷杩涜涓€閿紭鍖栵紝杩斿洖鏇存竻鏅般€佺畝娲佺殑鎻愮ず璇嶃€?
+璇锋眰绀轰緥锛?
 ```json
-{ "text": "你是一名数学老师，帮助学生学习代数" }
+{ "text": "浣犳槸涓€鍚嶆暟瀛﹁€佸笀锛屽府鍔╁鐢熷涔犱唬鏁? }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 {
   "success": true,
   "data": {
-    "optimizedText": "你是数学教师，需以清晰、简洁的方式帮助学生理解代数概念。"
+    "optimizedText": "浣犳槸鏁板鏁欏笀锛岄渶浠ユ竻鏅般€佺畝娲佺殑鏂瑰紡甯姪瀛︾敓鐞嗚В浠ｆ暟姒傚康銆?
   }
 }
 ```
 
 ### GET `/agent/discover`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X GET "http://localhost:3000/agent/discover?categoryId=1" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
-{ "success": true, "data": [{ "id": 1, "title": "教案生成专家" }] }
+{ "success": true, "data": [{ "id": 1, "title": "鏁欐鐢熸垚涓撳" }] }
 ```
 
 ### DELETE `/agent/:id`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X DELETE "http://localhost:3000/agent/9" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 { "success": true }
 ```
-失败响应示例（越权）：
+澶辫触鍝嶅簲绀轰緥锛堣秺鏉冿級锛?
 ```json
-{ "statusCode": 403, "message": "无权限删除该智能体", "error": "Forbidden" }
+{ "statusCode": 403, "message": "鏃犳潈闄愬垹闄よ鏅鸿兘浣?, "error": "Forbidden" }
 ```
 
 ### GET `/agent/featured`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X GET "http://localhost:3000/agent/featured" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
-{ "success": true, "data": [{ "id": 1, "title": "教案生成专家", "isFeatured": true }] }
+{ "success": true, "data": [{ "id": 1, "title": "鏁欐鐢熸垚涓撳", "isFeatured": true }] }
 ```
 
 ---
 
-## 4) 会话 Session
+## 4) 浼氳瘽 Session
 
 ### GET `/session/list`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X GET "http://localhost:3000/session/list" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
-{ "success": true, "data": [{ "id": 101, "topic": "新对话" }] }
+{ "success": true, "data": [{ "id": 101, "topic": "鏂板璇? }] }
 ```
 
 ### POST `/session/create`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X POST "http://localhost:3000/session/create" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
-{ "success": true, "data": { "id": 102, "topic": "新对话" } }
+{ "success": true, "data": { "id": 102, "topic": "鏂板璇? } }
 ```
 
 ### GET `/session/history/:id`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X GET "http://localhost:3000/session/history/102" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 {
   "success": true,
   "data": [
-    { "id": 1, "role": "user", "content": "你好" },
-    { "id": 2, "role": "assistant", "content": "你好，请问需要什么帮助？" }
+    { "id": 1, "role": "user", "content": "浣犲ソ" },
+    { "id": 2, "role": "assistant", "content": "浣犲ソ锛岃闂渶瑕佷粈涔堝府鍔╋紵" }
   ]
 }
 ```
 
 ### POST `/session/chat/:id`
-请求示例：
+璇锋眰绀轰緥锛?
 ```json
-{ "prompt": "请帮我出一份初中物理教案" }
+{ "prompt": "璇峰府鎴戝嚭涓€浠藉垵涓墿鐞嗘暀妗? }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```text
-data: {"choices":[{"delta":{"content":"当然可以"}}]}
+data: {"choices":[{"delta":{"content":"褰撶劧鍙互"}}]}
 
 data: [DONE]
 ```
 
 ### POST `/session/update-topic/:id`
-请求示例：
+璇锋眰绀轰緥锛?
 ```json
-{ "topic": "物理教案讨论" }
+{ "topic": "鐗╃悊鏁欐璁ㄨ" }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 { "success": true }
 ```
 
 ### DELETE `/session/:id`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X DELETE "http://localhost:3000/session/102" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 { "success": true }
 ```
 
 ---
 
-## 5) 聊天 Chat（一次性）
+## 5) 鑱婂ぉ Chat锛堜竴娆℃€э級
 
 ### POST `/chat/stream/:agentId`
-请求示例：
+璇锋眰绀轰緥锛?
 ```json
-{ "subject": "初二数学", "topic": "一元二次方程" }
+{ "subject": "鍒濅簩鏁板", "topic": "涓€鍏冧簩娆℃柟绋? }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```text
-data: {"choices":[{"delta":{"content":"以下是你的教学方案"}}]}
+data: {"choices":[{"delta":{"content":"浠ヤ笅鏄綘鐨勬暀瀛︽柟妗?}}]}
 
 data: [DONE]
 ```
-失败响应示例：
+澶辫触鍝嶅簲绀轰緥锛?
 ```json
-{ "statusCode": 403, "message": "您的 Token 额度已耗尽，或账号状态异常。", "error": "Forbidden" }
+{ "statusCode": 403, "message": "鎮ㄧ殑 Token 棰濆害宸茶€楀敖锛屾垨璐﹀彿鐘舵€佸紓甯搞€?, "error": "Forbidden" }
 ```
 
 ---
 
-## 6) 组织 Org
+## 6) 缁勭粐 Org
 
 ### GET `/org/list`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X GET "http://localhost:3000/org/list" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
-{ "success": true, "data": [{ "id": 1, "orgName": "北京实验学校" }] }
+{ "success": true, "data": [{ "id": 1, "orgName": "鍖椾含瀹為獙瀛︽牎" }] }
 ```
 
 ### POST `/org/create`
-请求示例：
+璇锋眰绀轰緥锛?
 ```json
-{ "name": "上海示范学校" }
+{ "name": "涓婃捣绀鸿寖瀛︽牎" }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
-{ "success": true, "data": { "id": 2, "orgName": "上海示范学校" } }
+{ "success": true, "data": { "id": 2, "orgName": "涓婃捣绀鸿寖瀛︽牎" } }
 ```
 
 ### POST `/org/admin`
-请求示例：
+璇锋眰绀轰緥锛?
 ```json
 { "orgId": 2, "username": "school_admin", "password": "123456" }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 { "success": true, "data": { "id": 11, "username": "school_admin", "role": "SCHOOL_ADMIN" } }
 ```
 
 ### GET `/org/:orgId/users`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X GET "http://localhost:3000/org/2/users" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 { "success": true, "data": [{ "id": 21, "username": "stu001", "role": "STUDENT" }] }
 ```
 
 ### POST `/org/:orgId/users/batch`
-请求示例：
+璇锋眰绀轰緥锛?
 ```json
 {
   "users": [
-    { "username": "stu001", "password": "123456", "role": "学生" },
-    { "username": "tea001", "password": "123456", "role": "老师" }
+    { "username": "stu001", "password": "123456", "role": "瀛︾敓" },
+    { "username": "tea001", "password": "123456", "role": "鑰佸笀" }
   ]
 }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 { "success": true, "data": { "total": 2, "created": 2, "failed": 0 } }
 ```
 
 ---
 
-## 7) 审批 Approval
+## 7) 瀹℃壒 Approval
 
 ### GET `/approval/pending`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X GET "http://localhost:3000/approval/pending" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
-{ "success": true, "data": [{ "id": 9, "title": "微积分高手", "approvalStatus": "PENDING" }] }
+{ "success": true, "data": [{ "id": 9, "title": "寰Н鍒嗛珮鎵?, "approvalStatus": "PENDING" }] }
 ```
 
 ### POST `/approval/review/:id`
-请求示例（通过）：
+璇锋眰绀轰緥锛堥€氳繃锛夛細
 ```json
 { "status": "APPROVED", "categoryId": 1, "isFeatured": false }
 ```
-请求示例（拒绝）：
+璇锋眰绀轰緥锛堟嫆缁濓級锛?
 ```json
 { "status": "REJECTED" }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 { "success": true, "data": { "id": 9, "approvalStatus": "APPROVED" } }
 ```
 
 ---
 
-## 8) 分类 Category
+## 8) 鍒嗙被 Category
 
 ### GET `/category/list`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X GET "http://localhost:3000/category/list"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
-{ "success": true, "data": [{ "id": 1, "name": "理科实验室" }] }
+{ "success": true, "data": [{ "id": 1, "name": "鐞嗙瀹為獙瀹? }] }
 ```
 
 ### POST `/category/create`
-请求示例：
+璇锋眰绀轰緥锛?
 ```json
-{ "name": "AI 写作", "weight": 5 }
+{ "name": "AI 鍐欎綔", "weight": 5 }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
-{ "success": true, "data": { "id": 12, "name": "AI 写作" } }
+{ "success": true, "data": { "id": 12, "name": "AI 鍐欎綔" } }
 ```
 
 ### PATCH `/category/:id`
-请求示例：
+璇锋眰绀轰緥锛?
 ```json
-{ "name": "AI 写作助手", "weight": 8 }
+{ "name": "AI 鍐欎綔鍔╂墜", "weight": 8 }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
-{ "success": true, "data": { "id": 12, "name": "AI 写作助手" } }
+{ "success": true, "data": { "id": 12, "name": "AI 鍐欎綔鍔╂墜" } }
 ```
 
 ### DELETE `/category/:id`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X DELETE "http://localhost:3000/category/12" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 { "success": true }
 ```
 
 ### GET `/category/:id/agents`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X GET "http://localhost:3000/category/3/agents" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 {
   "success": true,
   "data": [
     {
       "id": 23,
-      "title": "作文批改助手",
-      "description": "帮助学生提升写作能力",
+      "title": "浣滄枃鎵规敼鍔╂墜",
+      "description": "甯姪瀛︾敓鎻愬崌鍐欎綔鑳藉姏",
+      "iconUrl": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/system/agent-logo/book-icon.png",
       "model": "deepseek-v4-flash",
       "visibility": "PUBLIC",
       "approvalStatus": "APPROVED"
@@ -547,57 +548,57 @@ curl -X GET "http://localhost:3000/category/3/agents" -H "Authorization: Bearer 
 ```
 
 ### DELETE `/category/:id/agents/:agentId`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X DELETE "http://localhost:3000/category/3/agents/23" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 { "success": true }
 ```
 
 ### PATCH `/category/:id/agents/:agentId`
-请求示例：
+璇锋眰绀轰緥锛?
 ```json
 { "targetCategoryId": 5 }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 { "success": true }
 ```
 
 ### PUT `/category/:id/agents`
-请求示例：
+璇锋眰绀轰緥锛?
 ```json
 { "agentIds": [23, 45, 67] }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 { "success": true }
 ```
 
 ---
 
-## 9) 我的智能体推荐调用顺序（前端）
+## 9) 鎴戠殑鏅鸿兘浣撴帹鑽愯皟鐢ㄩ『搴忥紙鍓嶇锛?
 
 1. `GET /agent/my`
 2. `GET /category/list`
 3. `POST /agent/create`
 4. `GET /agent/:id`
 5. `POST /agent/update/:id`
-6. `POST /agent/update/:id`（发布：改 `visibility`）
+6. `POST /agent/update/:id`锛堝彂甯冿細鏀?`visibility`锛?
 7. `DELETE /agent/:id`
 
 ---
 
-## 10) 知识库 Knowledge
+## 10) 鐭ヨ瘑搴?Knowledge
 
 ### GET `/knowledge/system/agent-logos`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X GET "http://localhost:3000/knowledge/system/agent-logos" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 {
   "success": true,
@@ -610,18 +611,18 @@ curl -X GET "http://localhost:3000/knowledge/system/agent-logos" -H "Authorizati
 ```
 
 ### GET `/knowledge/folders`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
-curl -X GET "http://localhost:3000/knowledge/folders?parentId=0&keyword=教案" -H "Authorization: Bearer <token>"
+curl -X GET "http://localhost:3000/knowledge/folders?parentId=0&keyword=鏁欐" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 {
   "success": true,
   "data": [
     {
       "id": 11,
-      "name": "教案素材",
+      "name": "鏁欐绱犳潗",
       "parentId": null,
       "ownerId": 5,
       "orgId": 1,
@@ -637,17 +638,17 @@ curl -X GET "http://localhost:3000/knowledge/folders?parentId=0&keyword=教案" 
 ```
 
 ### GET `/knowledge/folders/:id`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X GET "http://localhost:3000/knowledge/folders/11" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 {
   "success": true,
   "data": {
     "id": 11,
-    "name": "教案素材",
+    "name": "鏁欐绱犳潗",
     "parentId": null,
     "ownerId": 5,
     "orgId": 1,
@@ -663,20 +664,20 @@ curl -X GET "http://localhost:3000/knowledge/folders/11" -H "Authorization: Bear
 ```
 
 ### POST `/knowledge/folders`
-请求示例：
+璇锋眰绀轰緥锛?
 ```json
 {
-  "name": "课程资料",
+  "name": "璇剧▼璧勬枡",
   "parentId": null
 }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 {
   "success": true,
   "data": {
     "id": 20,
-    "name": "课程资料",
+    "name": "璇剧▼璧勬枡",
     "parentId": null,
     "ownerId": 5,
     "orgId": 1,
@@ -689,19 +690,19 @@ curl -X GET "http://localhost:3000/knowledge/folders/11" -H "Authorization: Bear
 ```
 
 ### PATCH `/knowledge/folders/:id`
-请求示例：
+璇锋眰绀轰緥锛?
 ```json
 {
-  "name": "更新后的文件夹名"
+  "name": "鏇存柊鍚庣殑鏂囦欢澶瑰悕"
 }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 {
   "success": true,
   "data": {
     "id": 20,
-    "name": "更新后的文件夹名",
+    "name": "鏇存柊鍚庣殑鏂囦欢澶瑰悕",
     "parentId": null,
     "ownerId": 5,
     "orgId": 1,
@@ -714,29 +715,29 @@ curl -X GET "http://localhost:3000/knowledge/folders/11" -H "Authorization: Bear
 ```
 
 ### DELETE `/knowledge/folders/:id`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X DELETE "http://localhost:3000/knowledge/folders/20" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 { "success": true }
 ```
-失败响应示例（存在子文件夹或文件）：
+澶辫触鍝嶅簲绀轰緥锛堝瓨鍦ㄥ瓙鏂囦欢澶规垨鏂囦欢锛夛細
 ```json
 {
   "statusCode": 400,
-  "message": "文件夹下仍有子文件夹或文件，暂不支持直接删除",
+  "message": "鏂囦欢澶逛笅浠嶆湁瀛愭枃浠跺す鎴栨枃浠讹紝鏆備笉鏀寔鐩存帴鍒犻櫎",
   "error": "Bad Request"
 }
 ```
 
 ### GET `/knowledge/files`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
-curl -X GET "http://localhost:3000/knowledge/files?folderId=20&keyword=教案" -H "Authorization: Bearer <token>"
+curl -X GET "http://localhost:3000/knowledge/files?folderId=20&keyword=鏁欐" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 {
   "success": true,
@@ -746,12 +747,12 @@ curl -X GET "http://localhost:3000/knowledge/files?folderId=20&keyword=教案" -
       "folderId": 20,
       "ownerId": 5,
       "orgId": 1,
-      "name": "高一物理教案.pdf",
+      "name": "楂樹竴鐗╃悊鏁欐.pdf",
       "ext": "pdf",
       "mimeType": "application/pdf",
       "size": 234567,
-      "ossKey": "knowledge/5/2026/05/uuid-高一物理教案.pdf",
-      "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-高一物理教案.pdf",
+      "ossKey": "knowledge/5/2026/05/uuid-楂樹竴鐗╃悊鏁欐.pdf",
+      "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-楂樹竴鐗╃悊鏁欐.pdf",
       "status": "UPLOADED",
       "parseStatus": "PENDING",
       "createdAt": "2026-05-13T05:20:00.000Z",
@@ -763,11 +764,11 @@ curl -X GET "http://localhost:3000/knowledge/files?folderId=20&keyword=教案" -
 ```
 
 ### GET `/knowledge/files/recent`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X GET "http://localhost:3000/knowledge/files/recent?limit=5" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 {
   "success": true,
@@ -777,12 +778,12 @@ curl -X GET "http://localhost:3000/knowledge/files/recent?limit=5" -H "Authoriza
       "folderId": 20,
       "ownerId": 5,
       "orgId": 1,
-      "name": "高一物理教案.pdf",
+      "name": "楂樹竴鐗╃悊鏁欐.pdf",
       "ext": "pdf",
       "mimeType": "application/pdf",
       "size": 234567,
-      "ossKey": "knowledge/5/2026/05/uuid-高一物理教案.pdf",
-      "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-高一物理教案.pdf",
+      "ossKey": "knowledge/5/2026/05/uuid-楂樹竴鐗╃悊鏁欐.pdf",
+      "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-楂樹竴鐗╃悊鏁欐.pdf",
       "status": "UPLOADED",
       "parseStatus": "PENDING",
       "createdAt": "2026-05-13T05:20:00.000Z",
@@ -794,11 +795,11 @@ curl -X GET "http://localhost:3000/knowledge/files/recent?limit=5" -H "Authoriza
 ```
 
 ### GET `/knowledge/files/:id`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X GET "http://localhost:3000/knowledge/files/101" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 {
   "success": true,
@@ -807,12 +808,12 @@ curl -X GET "http://localhost:3000/knowledge/files/101" -H "Authorization: Beare
     "folderId": 20,
     "ownerId": 5,
     "orgId": 1,
-    "name": "高一物理教案.pdf",
+    "name": "楂樹竴鐗╃悊鏁欐.pdf",
     "ext": "pdf",
     "mimeType": "application/pdf",
     "size": 234567,
-    "ossKey": "knowledge/5/2026/05/uuid-高一物理教案.pdf",
-    "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-高一物理教案.pdf",
+    "ossKey": "knowledge/5/2026/05/uuid-楂樹竴鐗╃悊鏁欐.pdf",
+    "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-楂樹竴鐗╃悊鏁欐.pdf",
     "status": "UPLOADED",
     "parseStatus": "PENDING",
     "createdAt": "2026-05-13T05:20:00.000Z",
@@ -820,14 +821,14 @@ curl -X GET "http://localhost:3000/knowledge/files/101" -H "Authorization: Beare
     "deletedAt": null,
     "folder": {
       "id": 20,
-      "name": "课程资料"
+      "name": "璇剧▼璧勬枡"
     }
   }
 }
 ```
 
 ### POST `/knowledge/files/upload-policy`
-请求示例：
+璇锋眰绀轰緥锛?
 ```json
 {
   "fileName": "lesson-plan.docx",
@@ -835,7 +836,7 @@ curl -X GET "http://localhost:3000/knowledge/files/101" -H "Authorization: Beare
   "folderId": 20
 }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 {
   "success": true,
@@ -849,7 +850,7 @@ curl -X GET "http://localhost:3000/knowledge/files/101" -H "Authorization: Beare
 ```
 
 ### POST `/knowledge/files`
-请求示例：
+璇锋眰绀轰緥锛?
 ```json
 {
   "folderId": 20,
@@ -860,7 +861,7 @@ curl -X GET "http://localhost:3000/knowledge/files/101" -H "Authorization: Beare
   "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-lesson-plan.docx"
 }
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 {
   "success": true,
@@ -885,21 +886,21 @@ curl -X GET "http://localhost:3000/knowledge/files/101" -H "Authorization: Beare
 ```
 
 ### DELETE `/knowledge/files/:id`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X DELETE "http://localhost:3000/knowledge/files/102" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 { "success": true }
 ```
 
 ### GET `/knowledge/storage/stats`
-请求示例：
+璇锋眰绀轰緥锛?
 ```bash
 curl -X GET "http://localhost:3000/knowledge/storage/stats" -H "Authorization: Bearer <token>"
 ```
-成功响应示例：
+鎴愬姛鍝嶅簲绀轰緥锛?
 ```json
 {
   "success": true,
@@ -913,4 +914,4 @@ curl -X GET "http://localhost:3000/knowledge/storage/stats" -H "Authorization: B
 }
 ```
 
-7. 审核端：`GET /approval/pending` + `POST /approval/review/:id`
+7. 瀹℃牳绔細`GET /approval/pending` + `POST /approval/review/:id`
