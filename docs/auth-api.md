@@ -155,7 +155,7 @@ curl -X POST "http://localhost:3000/auth/sms_send" ^
 - 如果手机号对应用户不存在，会自动创建账号并登录
 - 自动创建账号时：
   - 默认角色：`STUDENT`
-  - 默认归属组织：`公共组织（默认）`
+  - 默认归属组织：`公共网点 (默认)`
   - 默认没有密码，`hasPassword = false`
 
 ### 典型失败场景
@@ -316,7 +316,7 @@ Authorization: Bearer <access_token>
     "deletedAt": null,
     "organization": {
       "id": 1,
-      "orgName": "公共组织（默认）",
+      "orgName": "公共网点 (默认)",
       "contactInfo": null,
       "status": "ACTIVE",
       "createdAt": "2026-05-12T10:00:00.000Z",

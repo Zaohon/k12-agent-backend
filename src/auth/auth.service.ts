@@ -6,6 +6,8 @@ import Dysmsapi20170525, * as $Dysmsapi20170525 from '@alicloud/dysmsapi20170525
 import * as OpenApi from '@alicloud/openapi-client';
 import * as Util from '@alicloud/tea-util';
 
+const PUBLIC_ORG_NAME = '\u516c\u5171\u7f51\u70b9 (\u9ed8\u8ba4)';
+
 type SmsCodeRecord = {
   code: string;
   expiresAt: number;
@@ -173,7 +175,11 @@ export class AuthService {
     });
 
     if (!user) {
-      const org = await this.ensurePublicOrg();
+      const org = await this.prisma.organization.upsert({
+        where: { orgName: PUBLIC_ORG_NAME },
+        update: {},
+        create: { orgName: PUBLIC_ORG_NAME },
+      });
       const username = await this.makeDefaultUsername(normalized);
 
       user = await this.prisma.user.create({
