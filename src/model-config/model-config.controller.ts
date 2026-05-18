@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Req, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Body, Req, UseGuards, ForbiddenException } from '@nestjs/common';
 import { ModelConfigService } from './model-config.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -8,14 +8,16 @@ export class ModelConfigController {
   constructor(private readonly modelConfigService: ModelConfigService) {}
 
   /**
-   * 获取当前用户所在组织的配置
+   * 获取当前用户所在组织的配置（仅管理员可访问）
    */
   @Get()
   async getConfig(@Req() req: any) {
-    const config = await this.modelConfigService.getConfigForOrg(req.user.orgId);
-    // 隐藏 apiKey 的完整值
-    const safeConfig = config ? { ...config, apiKey: config.apiKey ? '***' : null } : null;
-    return { success: true, data: safeConfig };
+    const user = req.user;
+    if (user.role !== 'SUPER_ADMIN' && user.role !== 'SCHOOL_ADMIN') {
+      throw new ForbiddenException('仅管理员可访问');
+    }
+    const config = await this.modelConfigService.getConfigForOrg(user.orgId);
+    return { success: true, data: config };
   }
 
   /**
