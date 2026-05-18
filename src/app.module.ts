@@ -12,9 +12,21 @@ import { CategoryModule } from './category/category.module';
 import { SessionModule } from './session/session.module';
 import { KnowledgeModule } from './knowledge/knowledge.module';
 import { OssModule } from './oss/oss.module';
+import { ModelConfigModule } from './model-config/model-config.module';
 
 @Module({
-  imports: [AgentModule, AuthModule, ChatModule, OrgModule, ApprovalModule, CategoryModule, SessionModule, KnowledgeModule, OssModule],
+  imports: [
+    AgentModule,
+    AuthModule,
+    ChatModule,
+    OrgModule,
+    ApprovalModule,
+    CategoryModule,
+    SessionModule,
+    KnowledgeModule,
+    OssModule,
+    ModelConfigModule,
+  ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
 })

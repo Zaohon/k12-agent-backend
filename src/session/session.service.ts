@@ -232,6 +232,17 @@ export class SessionService {
     const apiKey = process.env.AI_API_KEY || '';
     const apiBase = (process.env.AI_API_BASE || 'https://api.deepseek.com').replace(/\/$/, '');
     const model = modelOverride || process.env.AI_MODEL || 'deepseek-v4-flash';
+
+    // 处理自签名证书问题 - 使用 undici 的 Agent
+    let fetchImpl: any = fetch;
+    if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
+      const { Agent, setGlobalDispatcher } = require('undici');
+      const insecureAgent = new Agent({
+        connect: { rejectUnauthorized: false },
+      });
+      setGlobalDispatcher(insecureAgent);
+    }
+
     return fetch(`${apiBase}/chat/completions`, {
       method: 'POST',
       headers: {

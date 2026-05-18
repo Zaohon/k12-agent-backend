@@ -42,6 +42,19 @@ export class OrgService {
         })),
       });
 
+      // 为新组织创建默认模型配置
+      await tx.modelConfig.create({
+        data: {
+          orgId: org.id,
+          defaultModel: 'qwen3.6-plus',
+          apiBaseUrl: '',
+          apiKey: null,
+          orgMaxTokenLimit: 4096,
+          requestTimeout: 60,
+          enableContextMemory: false,
+        },
+      });
+
       return org;
     });
   }
