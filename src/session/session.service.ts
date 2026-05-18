@@ -5,7 +5,7 @@ import { PrismaService } from '../prisma.service';
 @Injectable()
 export class SessionService {
   private static readonly DEFAULT_TOPIC = '\u65b0\u5bf9\u8bdd';
-  private static readonly DEFAULT_AGENT_ID = 10;
+  private static readonly DEFAULT_AGENT_ID = 59;
 
   constructor(private prisma: PrismaService) {}
 
