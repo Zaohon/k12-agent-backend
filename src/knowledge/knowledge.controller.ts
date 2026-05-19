@@ -25,6 +25,15 @@ export class KnowledgeController {
     return { success: true, data };
   }
 
+  @Get('entries')
+  async listEntries(@Req() req: any, @Query('parentId') parentId?: string, @Query('keyword') keyword?: string) {
+    const data = await this.knowledgeService.listEntries(req.user, {
+      parentId: parentId ? parseInt(parentId, 10) : undefined,
+      keyword,
+    });
+    return { success: true, data };
+  }
+
   @Get('folders')
   async listFolders(@Req() req: any, @Query('parentId') parentId?: string, @Query('keyword') keyword?: string) {
     const data = await this.knowledgeService.listFolders(req.user, {
@@ -47,7 +56,11 @@ export class KnowledgeController {
   }
 
   @Patch('folders/:id')
-  async updateFolder(@Req() req: any, @Param('id', ParseIntPipe) id: number, @Body() body: { name: string }) {
+  async updateFolder(
+    @Req() req: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { name?: string; parentId?: number | null },
+  ) {
     const data = await this.knowledgeService.updateFolder(req.user, id, body);
     return { success: true, data };
   }
@@ -73,9 +86,34 @@ export class KnowledgeController {
     return { success: true, data };
   }
 
+  @Post('files/batch-move')
+  async batchMoveFiles(
+    @Req() req: any,
+    @Body() body: { fileIds: number[]; targetFolderId?: number | null },
+  ) {
+    const data = await this.knowledgeService.batchMoveFiles(req.user, body);
+    return { success: true, data };
+  }
+
+  @Post('files/batch-delete')
+  async batchDeleteFiles(@Req() req: any, @Body() body: { fileIds: number[] }) {
+    const data = await this.knowledgeService.batchDeleteFiles(req.user, body);
+    return { success: true, data };
+  }
+
   @Get('files/:id')
   async getFile(@Req() req: any, @Param('id', ParseIntPipe) id: number) {
     const data = await this.knowledgeService.getFile(req.user, id);
+    return { success: true, data };
+  }
+
+  @Patch('files/:id')
+  async updateFile(
+    @Req() req: any,
+    @Param('id', ParseIntPipe) id: number,
+    @Body() body: { name?: string; folderId?: number | null },
+  ) {
+    const data = await this.knowledgeService.updateFile(req.user, id, body);
     return { success: true, data };
   }
 

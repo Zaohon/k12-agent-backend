@@ -19,8 +19,24 @@ export class KnowledgeService {
       .sort((a, b) => a.localeCompare(b, 'zh-CN'));
   }
 
+  async listEntries(user: any, query: { parentId?: number; keyword?: string }) {
+    const [folders, files] = await Promise.all([
+      this.listFolders(user, query),
+      this.listFiles(user, {
+        folderId: query.parentId,
+        keyword: query.keyword,
+      }),
+    ]);
+
+    return {
+      parentId: query.parentId ?? null,
+      folders,
+      files,
+    };
+  }
+
   async listFolders(user: any, query: { parentId?: number; keyword?: string }) {
-    if (query.parentId) {
+    if (typeof query.parentId === 'number') {
       await this.assertFolderOwner(user.id, query.parentId);
     }
 
@@ -82,7 +98,7 @@ export class KnowledgeService {
     });
 
     if (!folder) {
-      throw new NotFoundException('文件夹不存在');
+      throw new NotFoundException('Folder not found');
     }
 
     return {
@@ -110,14 +126,27 @@ export class KnowledgeService {
     });
   }
 
-  async updateFolder(user: any, id: number, body: { name: string }) {
-    await this.assertFolderOwner(user.id, id);
+  async updateFolder(user: any, id: number, body: { name?: string; parentId?: number | null }) {
+    const folder = await this.assertFolderOwner(user.id, id);
+    const data: Record<string, unknown> = {};
+
+    if (typeof body?.name !== 'undefined') {
+      data.name = this.normalizeFolderName(body?.name);
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body || {}, 'parentId')) {
+      const parentId = body?.parentId ?? null;
+      await this.assertFolderMoveTarget(user.id, folder.id, parentId);
+      data.parentId = parentId;
+    }
+
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException('No folder fields to update');
+    }
 
     return this.prisma.knowledgeFolder.update({
       where: { id },
-      data: {
-        name: this.normalizeFolderName(body?.name),
-      },
+      data,
     });
   }
 
@@ -142,7 +171,7 @@ export class KnowledgeService {
     ]);
 
     if (childrenCount > 0 || fileCount > 0) {
-      throw new BadRequestException('文件夹下仍有子文件夹或文件，暂不支持直接删除');
+      throw new BadRequestException('Folder is not empty');
     }
 
     await this.prisma.knowledgeFolder.update({
@@ -200,10 +229,38 @@ export class KnowledgeService {
     });
 
     if (!file) {
-      throw new NotFoundException('文件不存在');
+      throw new NotFoundException('File not found');
     }
 
     return file;
+  }
+
+  async updateFile(user: any, id: number, body: { name?: string; folderId?: number | null }) {
+    await this.assertFileOwner(user.id, id);
+
+    const data: Record<string, unknown> = {};
+
+    if (typeof body?.name !== 'undefined') {
+      data.name = this.normalizeFileName(body?.name);
+      data.ext = this.extractExt(String(data.name));
+    }
+
+    if (Object.prototype.hasOwnProperty.call(body || {}, 'folderId')) {
+      const folderId = body?.folderId ?? null;
+      if (folderId) {
+        await this.assertFolderOwner(user.id, folderId);
+      }
+      data.folderId = folderId;
+    }
+
+    if (Object.keys(data).length === 0) {
+      throw new BadRequestException('No file fields to update');
+    }
+
+    return this.prisma.knowledgeFile.update({
+      where: { id },
+      data,
+    });
   }
 
   async createUploadPolicy(
@@ -241,13 +298,13 @@ export class KnowledgeService {
 
     const ossKey = String(body?.ossKey || '').trim();
     if (!ossKey) {
-      throw new BadRequestException('ossKey 不能为空');
+      throw new BadRequestException('ossKey is required');
     }
 
     try {
       await this.ossService.head(ossKey);
     } catch (error) {
-      throw new BadRequestException('OSS 文件不存在或尚未上传完成');
+      throw new BadRequestException('OSS file does not exist or upload is incomplete');
     }
 
     const ext = this.extractExt(name);
@@ -281,29 +338,51 @@ export class KnowledgeService {
   }
 
   async deleteFile(user: any, id: number) {
-    const file = await this.prisma.knowledgeFile.findFirst({
-      where: {
-        id,
-        ownerId: user.id,
-        deletedAt: null,
-      },
-    });
-
-    if (!file) {
-      throw new NotFoundException('文件不存在');
-    }
-
-    await this.prisma.knowledgeFile.update({
-      where: { id },
-      data: {
-        status: 'DELETED',
-        deletedAt: new Date(),
-      },
-    });
+    const file = await this.assertFileOwner(user.id, id);
+    await this.softDeleteFiles([file]);
 
     try {
       await this.ossService.delete(file.ossKey);
     } catch (error) {}
+  }
+
+  async batchMoveFiles(user: any, body: { fileIds: number[]; targetFolderId?: number | null }) {
+    const fileIds = this.normalizeIdList(body?.fileIds, 'fileIds');
+    const targetFolderId = body?.targetFolderId ?? null;
+
+    if (targetFolderId) {
+      await this.assertFolderOwner(user.id, targetFolderId);
+    }
+
+    const files = await this.assertFilesOwner(user.id, fileIds);
+
+    await this.prisma.knowledgeFile.updateMany({
+      where: {
+        id: {
+          in: files.map((item) => item.id),
+        },
+      },
+      data: {
+        folderId: targetFolderId,
+      },
+    });
+
+    return {
+      movedCount: files.length,
+      targetFolderId,
+    };
+  }
+
+  async batchDeleteFiles(user: any, body: { fileIds: number[] }) {
+    const fileIds = this.normalizeIdList(body?.fileIds, 'fileIds');
+    const files = await this.assertFilesOwner(user.id, fileIds);
+
+    await this.softDeleteFiles(files);
+    await Promise.allSettled(files.map((file) => this.ossService.delete(file.ossKey)));
+
+    return {
+      deletedCount: files.length,
+    };
   }
 
   async getStorageStats(user: any) {
@@ -353,19 +432,94 @@ export class KnowledgeService {
     });
 
     if (!folder) {
-      throw new ForbiddenException('文件夹不存在或无权访问');
+      throw new ForbiddenException('Folder not found or access denied');
     }
 
     return folder;
   }
 
+  private async assertFolderMoveTarget(userId: number, folderId: number, parentId: number | null) {
+    if (parentId === null) {
+      return null;
+    }
+
+    if (parentId === folderId) {
+      throw new BadRequestException('Folder cannot be moved into itself');
+    }
+
+    let current = await this.assertFolderOwner(userId, parentId);
+    while (current) {
+      if (current.id === folderId) {
+        throw new BadRequestException('Folder cannot be moved into its descendant');
+      }
+
+      if (!current.parentId) {
+        break;
+      }
+
+      current = await this.assertFolderOwner(userId, current.parentId);
+    }
+
+    return parentId;
+  }
+
+  private async assertFileOwner(userId: number, fileId: number) {
+    const file = await this.prisma.knowledgeFile.findFirst({
+      where: {
+        id: fileId,
+        ownerId: userId,
+        deletedAt: null,
+      },
+    });
+
+    if (!file) {
+      throw new NotFoundException('File not found');
+    }
+
+    return file;
+  }
+
+  private async assertFilesOwner(userId: number, fileIds: number[]) {
+    const files = await this.prisma.knowledgeFile.findMany({
+      where: {
+        id: {
+          in: fileIds,
+        },
+        ownerId: userId,
+        deletedAt: null,
+      },
+    });
+
+    if (files.length !== fileIds.length) {
+      throw new NotFoundException('Some files do not exist or are not accessible');
+    }
+
+    const fileMap = new Map(files.map((file) => [file.id, file]));
+    return fileIds.map((id) => fileMap.get(id)!);
+  }
+
+  private async softDeleteFiles(files: Array<{ id: number }>) {
+    const deletedAt = new Date();
+    await this.prisma.knowledgeFile.updateMany({
+      where: {
+        id: {
+          in: files.map((item) => item.id),
+        },
+      },
+      data: {
+        status: 'DELETED',
+        deletedAt,
+      },
+    });
+  }
+
   private normalizeFolderName(raw: unknown) {
     const name = String(raw || '').trim();
     if (!name) {
-      throw new BadRequestException('文件夹名称不能为空');
+      throw new BadRequestException('Folder name is required');
     }
     if (name.length > 120) {
-      throw new BadRequestException('文件夹名称长度不能超过 120');
+      throw new BadRequestException('Folder name must be at most 120 characters');
     }
     return name;
   }
@@ -373,10 +527,10 @@ export class KnowledgeService {
   private normalizeFileName(raw: unknown) {
     const name = String(raw || '').trim();
     if (!name) {
-      throw new BadRequestException('文件名不能为空');
+      throw new BadRequestException('File name is required');
     }
     if (name.length > 255) {
-      throw new BadRequestException('文件名长度不能超过 255');
+      throw new BadRequestException('File name must be at most 255 characters');
     }
     return name;
   }
@@ -384,9 +538,25 @@ export class KnowledgeService {
   private normalizeFileSize(raw: unknown) {
     const size = Number(raw ?? 0);
     if (!Number.isFinite(size) || size < 0) {
-      throw new BadRequestException('文件大小不合法');
+      throw new BadRequestException('Invalid file size');
     }
     return Math.floor(size);
+  }
+
+  private normalizeIdList(raw: unknown, fieldName: string) {
+    if (!Array.isArray(raw) || raw.length === 0) {
+      throw new BadRequestException(`${fieldName} must be a non-empty array`);
+    }
+
+    const ids = Array.from(
+      new Set(raw.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0)),
+    );
+
+    if (ids.length === 0) {
+      throw new BadRequestException(`${fieldName} must contain valid positive integers`);
+    }
+
+    return ids;
   }
 
   private extractExt(name: string) {

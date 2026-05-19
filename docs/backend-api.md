@@ -1134,6 +1134,108 @@ curl -X DELETE "http://localhost:3000/category/28/agents/1" -H "Authorization: B
 
 ## 11) 知识库 Knowledge
 
+### 总体说明
+当前知识库模块定位为“个人知识库”，不是组织共享网盘。
+
+核心特点：
+
+- 资源归当前登录用户所有，权限以 `ownerId` 为准
+- 目录和文件都支持树状管理
+- 首页按“文件夹卡片 + 最近文件 + 存储容量”来组织
+- 文件上传采用“前端直传 OSS + 后端落库”的顺序
+
+推荐前端把本节按以下顺序理解和接入：
+
+1. 先看“知识库首页调用顺序参考”，理解首页各区域怎么调接口
+2. 再看下面每个接口的输入输出
+3. 上传功能最后看“文件上传调用顺序参考”
+
+### 知识库首页调用顺序参考
+参考当前页面设计，知识库首页可以拆成以下几个区域：
+
+- 顶部搜索框
+- “我的文件夹”卡片区
+- “新建文件夹”按钮
+- “上传文件”按钮
+- “最近文件”列表
+- “存储容量”统计卡片
+
+推荐按下面的顺序组织接口调用。
+
+1. 页面初始化
+   首页默认展示根目录内容，因此优先调用 `GET /knowledge/entries`
+   - 根目录场景：`parentId` 不传
+   - 返回值中的 `folders` 用于渲染“我的文件夹”卡片区
+   - 返回值中的 `files` 如果首页不直接展示，可先忽略
+
+2. 首页同时加载最近文件
+   调用 `GET /knowledge/files/recent`
+   - 返回结果用于渲染页面下半部分“最近文件”表格
+   - `limit` 可根据页面设计控制，例如首页展示最近 5 条或 10 条
+
+3. 首页同时加载存储容量
+   调用 `GET /knowledge/storage/stats`
+   - 返回结果用于渲染右下角“存储容量”卡片
+   - 可直接使用 `usedBytes`、`totalBytes`、`usageRate`
+
+4. 顶部搜索框
+   用户输入关键字后，调用 `GET /knowledge/entries?keyword=...`
+   - 如果是在首页搜索根目录资源：只传 `keyword`
+   - 如果是在某个文件夹内部搜索：同时传 `parentId` 和 `keyword`
+   - 搜索结果仍然使用 `folders` 和 `files` 两部分分别渲染
+
+5. 点击文件夹卡片
+   用户点击“教案 / 课件 / 卷库 / 题库”这类文件夹卡片后：
+   - 记录当前文件夹 id 作为 `currentFolderId`
+   - 调用 `GET /knowledge/entries?parentId={folderId}`
+   - 页面切换到该文件夹详情视图
+
+6. 新建文件夹
+   点击“新建文件夹”按钮后，调用 `POST /knowledge/folders`
+   - 在首页根目录创建：`parentId = null`
+   - 在某个文件夹下创建：`parentId = currentFolderId`
+   - 创建成功后，重新调用当前目录的 `GET /knowledge/entries`
+
+7. 上传文件
+   点击“上传文件”按钮后，调用顺序如下：
+   - `POST /knowledge/files/upload-policy`
+   - 浏览器直传 OSS
+   - `POST /knowledge/files`
+   - 成功后刷新当前目录的 `GET /knowledge/entries`
+   - 如首页“最近文件”区域需要立即更新，再补调一次 `GET /knowledge/files/recent`
+   - 如存储容量卡片需要立即更新，再补调一次 `GET /knowledge/storage/stats`
+
+8. 文件夹卡片右上角更多操作
+   如果卡片右上角三点菜单支持“重命名 / 移动 / 删除”：
+   - 重命名 / 移动：调用 `PATCH /knowledge/folders/:id`
+   - 删除：调用 `DELETE /knowledge/folders/:id`
+   - 成功后刷新当前目录的 `GET /knowledge/entries`
+
+9. 最近文件表格操作
+   如果“最近文件”表格里支持下载、重命名、移动、删除：
+   - 查看详情：`GET /knowledge/files/:id`
+   - 重命名 / 移动：`PATCH /knowledge/files/:id`
+   - 删除：`DELETE /knowledge/files/:id`
+   - 批量移动：`POST /knowledge/files/batch-move`
+   - 批量删除：`POST /knowledge/files/batch-delete`
+   - 成功后建议刷新：
+     - `GET /knowledge/files/recent`
+     - 当前目录的 `GET /knowledge/entries`
+     - `GET /knowledge/storage/stats`
+
+10. “查看全部”
+    如果“最近文件”右上角的“查看全部”跳转到完整文件列表页：
+    - 可继续使用 `GET /knowledge/entries`
+    - 或在列表页结合 `GET /knowledge/files` 做纯文件视图
+
+说明：
+
+- 对于当前这版页面，`GET /knowledge/entries` 是首页和目录页的主接口
+- “我的文件夹”区域主要消费 `entries.folders`
+- “最近文件”区域主要消费 `GET /knowledge/files/recent`
+- “存储容量”卡片主要消费 `GET /knowledge/storage/stats`
+- 上传、重命名、移动、删除成功后，建议把“当前目录、最近文件、容量统计”作为一组联动刷新
+
 ### GET `/knowledge/system/agent-logos`
 请求示例：
 ```bash
@@ -1177,6 +1279,60 @@ curl -X GET "http://localhost:3000/knowledge/folders?parentId=0&keyword=教案" 
   ]
 }
 ```
+
+### GET `/knowledge/entries`
+作用：返回当前目录下的混合列表，包含子文件夹和文件。
+
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/knowledge/entries?parentId=20&keyword=教案" -H "Authorization: Bearer <token>"
+```
+
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "parentId": 20,
+    "folders": [
+      {
+        "id": 21,
+        "name": "单元教案",
+        "parentId": 20,
+        "ownerId": 5,
+        "orgId": 1,
+        "status": "ACTIVE",
+        "createdAt": "2026-05-13T05:05:00.000Z",
+        "updatedAt": "2026-05-13T05:05:00.000Z",
+        "deletedAt": null,
+        "folderCount": 1,
+        "fileCount": 4
+      }
+    ],
+    "files": [
+      {
+        "id": 101,
+        "folderId": 20,
+        "ownerId": 5,
+        "orgId": 1,
+        "name": "高一物理教案.pdf",
+        "ext": "pdf",
+        "mimeType": "application/pdf",
+        "size": 234567,
+        "ossKey": "knowledge/5/2026/05/uuid-高一物理教案.pdf",
+        "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-高一物理教案.pdf",
+        "status": "UPLOADED",
+        "parseStatus": "PENDING",
+        "createdAt": "2026-05-13T05:20:00.000Z",
+        "updatedAt": "2026-05-13T05:20:00.000Z",
+        "deletedAt": null
+      }
+    ]
+  }
+}
+```
+
+
 
 ### GET `/knowledge/folders/:id`
 请求示例：
@@ -1234,7 +1390,8 @@ curl -X GET "http://localhost:3000/knowledge/folders/11" -H "Authorization: Bear
 请求示例：
 ```json
 {
-  "name": "更新后的文件夹名"
+  "name": "更新后的文件夹名",
+  "parentId": 11
 }
 ```
 成功响应示例：
@@ -1254,6 +1411,11 @@ curl -X GET "http://localhost:3000/knowledge/folders/11" -H "Authorization: Bear
   }
 }
 ```
+说明：
+- `name` 可选，用于重命名
+- `parentId` 可选，用于移动文件夹到新的父目录
+- `parentId = null` 表示移动到根目录
+- 不允许把文件夹移动到自己或自己的子孙目录下
 
 ### DELETE `/knowledge/folders/:id`
 请求示例：
@@ -1268,7 +1430,7 @@ curl -X DELETE "http://localhost:3000/knowledge/folders/20" -H "Authorization: B
 ```json
 {
   "statusCode": 400,
-  "message": "文件夹下仍有子文件夹或文件，暂不支持直接删除",
+  "message": "Folder is not empty",
   "error": "Bad Request"
 }
 ```
@@ -1368,6 +1530,43 @@ curl -X GET "http://localhost:3000/knowledge/files/101" -H "Authorization: Beare
 }
 ```
 
+### PATCH `/knowledge/files/:id`
+请求示例：
+```json
+{
+  "name": "高一物理教案-整理版.pdf",
+  "folderId": 21
+}
+```
+
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "id": 101,
+    "folderId": 21,
+    "ownerId": 5,
+    "orgId": 1,
+    "name": "高一物理教案-整理版.pdf",
+    "ext": "pdf",
+    "mimeType": "application/pdf",
+    "size": 234567,
+    "ossKey": "knowledge/5/2026/05/uuid-高一物理教案.pdf",
+    "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-高一物理教案.pdf",
+    "status": "UPLOADED",
+    "parseStatus": "PENDING",
+    "createdAt": "2026-05-13T05:20:00.000Z",
+    "updatedAt": "2026-05-13T05:40:00.000Z",
+    "deletedAt": null
+  }
+}
+```
+说明：
+- `name` 可选，用于重命名文件
+- `folderId` 可选，用于移动文件到新的目录
+- `folderId = null` 表示移动到根目录
+
 ### POST `/knowledge/files/upload-policy`
 请求示例：
 ```json
@@ -1422,6 +1621,59 @@ curl -X GET "http://localhost:3000/knowledge/files/101" -H "Authorization: Beare
     "createdAt": "2026-05-13T05:30:00.000Z",
     "updatedAt": "2026-05-13T05:30:00.000Z",
     "deletedAt": null
+  }
+}
+```
+
+### 文件上传调用顺序参考
+知识库文件上传采用“前端直传 OSS + 后端落库”的两段式流程：
+
+1. 调用 `POST /knowledge/files/upload-policy` 获取上传地址和对象 key
+2. 前端直接 `PUT` 文件到返回的 `uploadUrl`
+3. 上传成功后，调用 `POST /knowledge/files` 创建业务文件记录
+4. 前端刷新当前目录的 `GET /knowledge/entries` 或 `GET /knowledge/files`
+
+说明：
+- 文件内容不经过业务后端，浏览器直接上传到 OSS
+- 后端只负责签发上传地址、校验权限、保存文件元数据
+- 如果第 2 步上传成功但第 3 步未执行，会产生“OSS 已有文件但业务库无记录”的孤儿对象，建议前端在上传成功后立即调用落库接口
+
+### POST `/knowledge/files/batch-move`
+请求示例：
+```json
+{
+  "fileIds": [101, 102, 103],
+  "targetFolderId": 21
+}
+```
+
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "movedCount": 3,
+    "targetFolderId": 21
+  }
+}
+```
+说明：
+- `targetFolderId = null` 表示批量移动到根目录
+
+### POST `/knowledge/files/batch-delete`
+请求示例：
+```json
+{
+  "fileIds": [101, 102, 103]
+}
+```
+
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "deletedCount": 3
   }
 }
 ```
