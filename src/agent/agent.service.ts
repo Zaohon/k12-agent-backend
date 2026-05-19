@@ -271,7 +271,6 @@ export class AgentService implements OnModuleInit {
       throw new ForbiddenException('无权限修改该智能体');
     }
 
-    const { categoryId } = data;
     const cleanData = this.normalizeAgentConfigForUpdate(data);
     // Basic backend protection for status downgrade if visibility gets elevated
     if (cleanData.visibility === 'PUBLIC' || cleanData.visibility === 'ORG_VISIBLE') {
@@ -279,15 +278,6 @@ export class AgentService implements OnModuleInit {
     } else if (cleanData.visibility === 'PRIVATE') {
       cleanData.approvalStatus = 'APPROVED';
     }
-    
-    // If categoryId is provided, we sync it (assuming single category for now for MVP simplicity)
-    if (categoryId) {
-       await this.prisma.agentCategory.deleteMany({ where: { agentId: id } });
-       await this.prisma.agentCategory.create({
-          data: { agentId: id, categoryId: parseInt(categoryId) }
-       });
-    }
-
     return this.prisma.agent.update({
       where: { id },
       data: cleanData
@@ -297,9 +287,6 @@ export class AgentService implements OnModuleInit {
   async getMyAgents(userId: number) {
     return this.prisma.agent.findMany({
       where: { creatorId: userId },
-      include: {
-        categories: true,
-      },
       orderBy: { updatedAt: 'desc' }
     });
   }
@@ -307,9 +294,6 @@ export class AgentService implements OnModuleInit {
   async getAgentById(id: number) {
     return this.prisma.agent.findUnique({
       where: { id },
-      include: {
-        categories: true,
-      },
     });
   }
 

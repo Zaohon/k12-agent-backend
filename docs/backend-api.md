@@ -284,18 +284,7 @@ curl -X GET "http://localhost:3000/agent/my" -H "Authorization: Bearer <token>"
       "status": "ACTIVE",
       "createdAt": "2026-05-15T09:13:51.097Z",
       "updatedAt": "2026-05-15T09:13:53.008Z",
-      "deletedAt": null,
-      "categories": [
-        {
-          "id": 18,
-          "agentId": 17,
-          "categoryId": 5,
-          "status": "ACTIVE",
-          "createdAt": "2026-05-15T09:13:51.097Z",
-          "updatedAt": "2026-05-15T09:13:51.097Z",
-          "deletedAt": null
-        }
-      ]
+      "deletedAt": null
     }
   ]
 }
@@ -305,7 +294,6 @@ curl -X GET "http://localhost:3000/agent/my" -H "Authorization: Bearer <token>"
 用途：获取单个智能体详情。
 
 说明：
-- 当前实现按 `id` 直接查询，返回时包含 `categories`
 - 当前接口本身没有额外做“是否有权查看该智能体”的校验
 
 请求示例：
@@ -339,18 +327,7 @@ curl -X GET "http://localhost:3000/agent/17" -H "Authorization: Bearer <token>"
     "status": "ACTIVE",
     "createdAt": "2026-05-15T09:13:51.097Z",
     "updatedAt": "2026-05-15T09:13:53.008Z",
-    "deletedAt": null,
-    "categories": [
-      {
-        "id": 18,
-        "agentId": 17,
-        "categoryId": 5,
-        "status": "ACTIVE",
-        "createdAt": "2026-05-15T09:13:51.097Z",
-        "updatedAt": "2026-05-15T09:13:51.097Z",
-        "deletedAt": null
-      }
-    ]
+    "deletedAt": null
   }
 }
 ```
@@ -432,7 +409,7 @@ curl -X GET "http://localhost:3000/agent/17" -H "Authorization: Bearer <token>"
 ```
 
 ### POST `/agent/update/:id`
-用途：更新智能体内容、能力开关、可见性或分类。
+用途：更新智能体内容、能力开关、可见性或状态。
 
 字段说明：
 - 可更新字段：
@@ -450,21 +427,19 @@ curl -X GET "http://localhost:3000/agent/17" -H "Authorization: Bearer <token>"
   - `enableDeepThink`
   - `enableFileUpload`
   - `enableKnowledgeBase`
-  - `categoryId`
 
 更新规则：
 - 仅创建者本人或 `SUPER_ADMIN` 可以修改
 - 若本次将 `visibility` 更新为 `PUBLIC` 或 `ORG_VISIBLE`，后端会将 `approvalStatus` 重置为 `PENDING`
 - 若本次将 `visibility` 更新为 `PRIVATE`，后端会将 `approvalStatus` 改为 `APPROVED`
-- 若传了 `categoryId`，后端会先删除该智能体现有关联，再创建一条新的分类关联
+- 分类关联需通过分类接口单独维护
 
 请求示例：
 ```json
 {
   "description": "更新后的简介",
   "enableWebParse": true,
-  "visibility": "ORG_VISIBLE",
-  "categoryId": 5
+  "visibility": "ORG_VISIBLE"
 }
 ```
 
