@@ -1141,7 +1141,7 @@ curl -X DELETE "http://localhost:3000/category/28/agents/1" -H "Authorization: B
 
 - 资源归当前登录用户所有，权限以 `ownerId` 为准
 - 目录和文件都支持树状管理
-- 首页按“文件夹卡片 + 最近文件 + 存储容量”来组织
+- 首页按“文件夹卡片 + 存储容量”来组织
 - 文件上传采用“前端直传 OSS + 后端落库”的顺序
 
 推荐前端把本节按以下顺序理解和接入：
@@ -1153,11 +1153,9 @@ curl -X DELETE "http://localhost:3000/category/28/agents/1" -H "Authorization: B
 ### 知识库首页调用顺序参考
 参考当前页面设计，知识库首页可以拆成以下几个区域：
 
-- 顶部搜索框
 - “我的文件夹”卡片区
 - “新建文件夹”按钮
 - “上传文件”按钮
-- “最近文件”列表
 - “存储容量”统计卡片
 
 推荐按下面的顺序组织接口调用。
@@ -1168,73 +1166,54 @@ curl -X DELETE "http://localhost:3000/category/28/agents/1" -H "Authorization: B
    - 返回值中的 `folders` 用于渲染“我的文件夹”卡片区
    - 返回值中的 `files` 如果首页不直接展示，可先忽略
 
-2. 首页同时加载最近文件
-   调用 `GET /knowledge/files/recent`
-   - 返回结果用于渲染页面下半部分“最近文件”表格
-   - `limit` 可根据页面设计控制，例如首页展示最近 5 条或 10 条
-
-3. 首页同时加载存储容量
+2. 首页同时加载存储容量
    调用 `GET /knowledge/storage/stats`
    - 返回结果用于渲染右下角“存储容量”卡片
    - 可直接使用 `usedBytes`、`totalBytes`、`usageRate`
 
-4. 顶部搜索框
-   用户输入关键字后，调用 `GET /knowledge/entries?keyword=...`
-   - 如果是在首页搜索根目录资源：只传 `keyword`
-   - 如果是在某个文件夹内部搜索：同时传 `parentId` 和 `keyword`
-   - 搜索结果仍然使用 `folders` 和 `files` 两部分分别渲染
-
-5. 点击文件夹卡片
+3. 点击文件夹卡片
    用户点击“教案 / 课件 / 卷库 / 题库”这类文件夹卡片后：
    - 记录当前文件夹 id 作为 `currentFolderId`
    - 调用 `GET /knowledge/entries?parentId={folderId}`
    - 页面切换到该文件夹详情视图
 
-6. 新建文件夹
+4. 新建文件夹
    点击“新建文件夹”按钮后，调用 `POST /knowledge/folders`
    - 在首页根目录创建：`parentId = null`
    - 在某个文件夹下创建：`parentId = currentFolderId`
    - 创建成功后，重新调用当前目录的 `GET /knowledge/entries`
 
-7. 上传文件
+5. 上传文件
    点击“上传文件”按钮后，调用顺序如下：
    - `POST /knowledge/files/upload-policy`
    - 浏览器直传 OSS
    - `POST /knowledge/files`
    - 成功后刷新当前目录的 `GET /knowledge/entries`
-   - 如首页“最近文件”区域需要立即更新，再补调一次 `GET /knowledge/files/recent`
    - 如存储容量卡片需要立即更新，再补调一次 `GET /knowledge/storage/stats`
 
-8. 文件夹卡片右上角更多操作
+6. 文件夹卡片右上角更多操作
    如果卡片右上角三点菜单支持“重命名 / 移动 / 删除”：
    - 重命名 / 移动：调用 `PATCH /knowledge/folders/:id`
    - 删除：调用 `DELETE /knowledge/folders/:id`
    - 成功后刷新当前目录的 `GET /knowledge/entries`
 
-9. 最近文件表格操作
-   如果“最近文件”表格里支持下载、重命名、移动、删除：
+7. 文件操作
+   如果页面里支持下载、重命名、移动、删除：
    - 查看详情：`GET /knowledge/files/:id`
    - 重命名 / 移动：`PATCH /knowledge/files/:id`
    - 删除：`DELETE /knowledge/files/:id`
    - 批量移动：`POST /knowledge/files/batch-move`
    - 批量删除：`POST /knowledge/files/batch-delete`
    - 成功后建议刷新：
-     - `GET /knowledge/files/recent`
      - 当前目录的 `GET /knowledge/entries`
      - `GET /knowledge/storage/stats`
-
-10. “查看全部”
-    如果“最近文件”右上角的“查看全部”跳转到完整文件列表页：
-    - 可继续使用 `GET /knowledge/entries`
-    - 或在列表页结合 `GET /knowledge/files` 做纯文件视图
 
 说明：
 
 - 对于当前这版页面，`GET /knowledge/entries` 是首页和目录页的主接口
 - “我的文件夹”区域主要消费 `entries.folders`
-- “最近文件”区域主要消费 `GET /knowledge/files/recent`
 - “存储容量”卡片主要消费 `GET /knowledge/storage/stats`
-- 上传、重命名、移动、删除成功后，建议把“当前目录、最近文件、容量统计”作为一组联动刷新
+- 上传、重命名、移动、删除成功后，建议把“当前目录、容量统计”作为一组联动刷新
 
 ### GET `/knowledge/system/agent-logos`
 请求示例：
@@ -1256,7 +1235,7 @@ curl -X GET "http://localhost:3000/knowledge/system/agent-logos" -H "Authorizati
 ### GET `/knowledge/folders`
 请求示例：
 ```bash
-curl -X GET "http://localhost:3000/knowledge/folders?parentId=0&keyword=教案" -H "Authorization: Bearer <token>"
+curl -X GET "http://localhost:3000/knowledge/folders?parentId=0" -H "Authorization: Bearer <token>"
 ```
 成功响应示例：
 ```json
@@ -1285,7 +1264,7 @@ curl -X GET "http://localhost:3000/knowledge/folders?parentId=0&keyword=教案" 
 
 请求示例：
 ```bash
-curl -X GET "http://localhost:3000/knowledge/entries?parentId=20&keyword=教案" -H "Authorization: Bearer <token>"
+curl -X GET "http://localhost:3000/knowledge/entries?parentId=20" -H "Authorization: Bearer <token>"
 ```
 
 成功响应示例：
@@ -1438,38 +1417,7 @@ curl -X DELETE "http://localhost:3000/knowledge/folders/20" -H "Authorization: B
 ### GET `/knowledge/files`
 请求示例：
 ```bash
-curl -X GET "http://localhost:3000/knowledge/files?folderId=20&keyword=教案" -H "Authorization: Bearer <token>"
-```
-成功响应示例：
-```json
-{
-  "success": true,
-  "data": [
-    {
-      "id": 101,
-      "folderId": 20,
-      "ownerId": 5,
-      "orgId": 1,
-      "name": "高一物理教案.pdf",
-      "ext": "pdf",
-      "mimeType": "application/pdf",
-      "size": 234567,
-      "ossKey": "knowledge/5/2026/05/uuid-高一物理教案.pdf",
-      "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-高一物理教案.pdf",
-      "status": "UPLOADED",
-      "parseStatus": "PENDING",
-      "createdAt": "2026-05-13T05:20:00.000Z",
-      "updatedAt": "2026-05-13T05:20:00.000Z",
-      "deletedAt": null
-    }
-  ]
-}
-```
-
-### GET `/knowledge/files/recent`
-请求示例：
-```bash
-curl -X GET "http://localhost:3000/knowledge/files/recent?limit=5" -H "Authorization: Bearer <token>"
+curl -X GET "http://localhost:3000/knowledge/files?folderId=20" -H "Authorization: Bearer <token>"
 ```
 成功响应示例：
 ```json
