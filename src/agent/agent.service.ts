@@ -249,20 +249,15 @@ export class AgentService implements OnModuleInit {
    * Based on PRD: Default visibility is strictly enforced.
    */
   async createAgent(user: { id: number, orgId?: number, role: string }, data: any) {
-    const { categoryId } = data;
     const cleanData = this.normalizeAgentConfigForCreate(data);
     const isPublic = cleanData.visibility !== 'PRIVATE';
-    const autoApprove = user.role === 'SUPER_ADMIN';
 
     return this.prisma.agent.create({
       data: {
         ...cleanData,
         creatorId: user.id,
         orgId: user.orgId,
-        approvalStatus: isPublic && !autoApprove ? 'PENDING' : 'APPROVED',
-        categories: categoryId ? {
-          create: { categoryId: parseInt(categoryId) }
-        } : undefined
+        approvalStatus: isPublic ? 'PENDING' : 'APPROVED',
       }
     });
   }

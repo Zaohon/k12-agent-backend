@@ -374,16 +374,13 @@ curl -X GET "http://localhost:3000/agent/17" -H "Authorization: Bearer <token>"
   - `enableFileUpload`
   - `enableKnowledgeBase`
   - `visibility`
-  - `categoryId`
 
 创建规则：
 - `creatorId` 固定为当前登录用户
 - `orgId` 固定取当前登录用户的 `orgId`
 - 若 `visibility = PRIVATE`，则 `approvalStatus = APPROVED`
-- 若 `visibility != PRIVATE`：
-  - `SUPER_ADMIN` 创建后直接 `APPROVED`
-  - 其他角色创建后为 `PENDING`
-- 若传了 `categoryId`，会同步创建一条分类关联
+- 若 `visibility != PRIVATE`，创建后统一为 `PENDING`
+- 创建接口不接收 `categoryId`，分类关联需通过分类接口单独维护
 
 请求示例：
 ```json
@@ -393,7 +390,6 @@ curl -X GET "http://localhost:3000/agent/17" -H "Authorization: Bearer <token>"
   "systemPrompt": "你是一名数学老师，请循序渐进讲解微积分问题。",
   "welcomeMsg": "你好，我可以帮你拆解微积分题目。",
   "iconUrl": "Document",
-  "categoryId": 1,
   "model": "deepseek-v4-flash",
   "enableWebSearch": true,
   "enableWebParse": false,
