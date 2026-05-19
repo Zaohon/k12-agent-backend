@@ -1,6 +1,6 @@
 ﻿# K12 Agent Backend API 文档（含输入输出示例）
 
-更新时间：2026-05-11  
+更新时间：2026-05-18
 适用项目：`k12-agent-backend`
 
 ## 通用说明
@@ -796,7 +796,82 @@ curl -X GET "http://localhost:3000/org/5/users" -H "Authorization: Bearer <token
 
 ---
 
-## 7) 审批 Approval
+## 7) 模型与接口配置 Model Config
+
+### GET `/model-config`
+用途：获取当前用户所在组织的模型与接口配置。
+权限：所有已登录用户。
+
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/model-config" -H "Authorization: Bearer <token>"
+```
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "orgId": 5,
+    "defaultModel": "qwen3.6-plus",
+    "apiBaseUrl": "https://api.xiaolongai.com/v1",
+    "apiKey": "***",
+    "orgMaxTokenLimit": 4096,
+    "requestTimeout": 60,
+    "enableContextMemory": false,
+    "status": "ACTIVE",
+    "createdAt": "2026-05-18T09:00:00.000Z",
+    "updatedAt": "2026-05-18T09:00:00.000Z"
+  }
+}
+```
+失败响应示例（无组织）：
+```json
+{ "success": true, "data": null }
+```
+
+### POST `/model-config`
+用途：创建或更新当前组织的模型与接口配置。
+权限：仅管理员（`SUPER_ADMIN` / `SCHOOL_ADMIN`）。
+
+请求示例：
+```json
+{
+  "defaultModel": "qwen3.6-plus",
+  "apiBaseUrl": "https://api.xiaolongai.com/v1",
+  "apiKey": "sk-xxxxxxxxxxxxxxxx",
+  "orgMaxTokenLimit": 8192,
+  "requestTimeout": 120,
+  "enableContextMemory": true
+}
+```
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "id": 1,
+    "orgId": 5,
+    "defaultModel": "qwen3.6-plus",
+    "apiBaseUrl": "https://api.xiaolongai.com/v1",
+    "apiKey": "sk-xxxxxxxxxxxxxxxx",
+    "orgMaxTokenLimit": 8192,
+    "requestTimeout": 120,
+    "enableContextMemory": true,
+    "status": "ACTIVE",
+    "createdAt": "2026-05-18T09:00:00.000Z",
+    "updatedAt": "2026-05-18T09:10:00.000Z"
+  }
+}
+```
+失败响应示例（非管理员）：
+```json
+{ "statusCode": 403, "message": "仅管理员可操作", "error": "Forbidden" }
+```
+
+---
+
+## 8) 审批 Approval
 
 ### GET `/approval/pending`
 用途：获取审批列表（按当前用户所属组织返回该组织下智能体，包含所有 `approvalStatus`）。
@@ -842,7 +917,7 @@ curl -X GET "http://localhost:3000/approval/pending" -H "Authorization: Bearer <
 
 ---
 
-## 8) 分类 Category
+## 9) 分类 Category
 
 ### GET `/category/list`
 用途：获取分类列表（所有已登录用户可用）。
@@ -1045,7 +1120,7 @@ curl -X DELETE "http://localhost:3000/category/28/agents/1" -H "Authorization: B
 
 ---
 
-## 9) 我的智能体推荐调用顺序（前端）
+## 10) 我的智能体推荐调用顺序（前端）
 
 1. `GET /agent/my`
 2. `GET /category/list`
@@ -1057,7 +1132,7 @@ curl -X DELETE "http://localhost:3000/category/28/agents/1" -H "Authorization: B
 
 ---
 
-## 10) 知识库 Knowledge
+## 11) 知识库 Knowledge
 
 ### GET `/knowledge/system/agent-logos`
 请求示例：
@@ -1384,7 +1459,7 @@ curl -X GET "http://localhost:3000/knowledge/storage/stats" -H "Authorization: B
 
 ---
 
-## 11) 枚举定义（约定）
+## 12) 枚举定义（约定）
 
 ### 用户身份（role）
 - `SUPER_ADMIN`：超级管理员（系统级）

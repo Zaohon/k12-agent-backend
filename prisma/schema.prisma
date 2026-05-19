@@ -21,6 +21,7 @@ model Organization {
   categories Category[]
   knowledgeFolders KnowledgeFolder[]
   knowledgeFiles   KnowledgeFile[]
+  modelConfigs     ModelConfig[]
 
   @@index([status], map: "idx_lq_organization_status")
   @@index([createdAt], map: "idx_lq_organization_created_at")
@@ -275,4 +276,31 @@ model KnowledgeFileJob {
   @@index([createdAt], map: "idx_lq_knowledge_file_job_created_at")
   @@index([updatedAt], map: "idx_lq_knowledge_file_job_updated_at")
   @@map("lq_knowledge_file_job")
+}
+
+model ModelConfig {
+  id                  Int       @id @default(autoincrement())
+  orgId               Int?      @map("org_id")
+  isDefault           Boolean   @default(false) @map("is_default")
+  defaultModel        String    @default("qwen3.6-plus") @map("default_model") @db.VarChar(100)
+  apiBaseUrl          String    @map("api_base_url") @db.VarChar(500)
+  apiKey              String?   @map("api_key") @db.VarChar(500)
+  orgMaxTokenLimit    Int       @default(4096) @map("org_max_token_limit")
+  requestTimeout      Int       @default(60) @map("request_timeout")
+  enableContextMemory Boolean   @default(false) @map("enable_context_memory")
+  status              String    @default("ACTIVE") @db.VarChar(32)
+  createdAt           DateTime  @default(now()) @map("created_at")
+  updatedAt           DateTime  @updatedAt @map("updated_at")
+  deletedAt           DateTime? @map("deleted_at")
+
+  organization        Organization? @relation(fields: [orgId], references: [id])
+
+  @@unique([orgId, isDefault], map: "uk_lq_model_config_org_id_is_default")
+  @@index([orgId], map: "idx_lq_model_config_org_id")
+  @@index([isDefault], map: "idx_lq_model_config_is_default")
+  @@index([status], map: "idx_lq_model_config_status")
+  @@index([createdAt], map: "idx_lq_model_config_created_at")
+  @@index([updatedAt], map: "idx_lq_model_config_updated_at")
+  @@index([deletedAt], map: "idx_lq_model_config_deleted_at")
+  @@map("lq_model_config")
 }
