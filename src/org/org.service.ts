@@ -59,21 +59,41 @@ export class OrgService {
     });
   }
 
-  async createOrgAdmin(currentUser: any, orgId: number, username: string, passwordHash: string) {
+  async createOrgAdmin(currentUser: any, orgId: number, userId: number) {
     if (currentUser.role !== 'SUPER_ADMIN') throw new ForbiddenException('仅超级管理员可操作');
 
-    const existInfo = await this.prisma.user.findUnique({ where: { username } });
-    if (existInfo) throw new BadRequestException('该管理员账号名已被占用');
+    const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
+    if (!org || org.deletedAt) {
+      throw new BadRequestException('组织不存在');
+    }
 
-    const hash = await bcrypt.hash(passwordHash, 10);
-    return this.prisma.user.create({
-      data: {
-        username,
-        passwordHash: hash,
-        passwordSetAt: new Date(),
-        role: 'SCHOOL_ADMIN',
-        orgId,
-      },
+    const targetUser = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!targetUser || targetUser.deletedAt) {
+      throw new BadRequestException('目标用户不存在');
+    }
+    if (targetUser.role === 'SUPER_ADMIN') {
+      throw new BadRequestException('超级管理员账号不能移交为组织管理员');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      // 先撤销当前组织已有管理员（移交语义：仅保留一个组织管理员）
+      await tx.user.updateMany({
+        where: {
+          orgId,
+          role: 'SCHOOL_ADMIN',
+          deletedAt: null,
+        },
+        data: { role: 'TEACHER' },
+      });
+
+      return tx.user.update({
+        where: { id: targetUser.id },
+        data: {
+          role: 'SCHOOL_ADMIN',
+          orgId,
+          status: 'ACTIVE',
+        },
+      });
     });
   }
 

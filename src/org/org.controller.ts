@@ -21,8 +21,8 @@ export class OrgController {
 
   @Post('admin')
   async createOrgAdmin(@Req() req: any, @Body() body: any) {
-    const { orgId, username, password } = body;
-    const admin = await this.orgService.createOrgAdmin(req.user, orgId, username, password);
+    const { orgId, userId } = body;
+    const admin = await this.orgService.createOrgAdmin(req.user, orgId, userId);
     return { success: true, data: admin };
   }
 

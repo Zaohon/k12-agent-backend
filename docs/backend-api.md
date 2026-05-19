@@ -698,11 +698,15 @@ curl -X GET "http://localhost:3000/org/list" -H "Authorization: Bearer <token>"
 ```
 
 ### POST `/org/admin`
-用途：给指定组织创建组织管理员（仅 `SUPER_ADMIN`）。
+用途：替换/移交指定组织管理员（仅 `SUPER_ADMIN`）。
+规则：
+- 该组织原有 `SCHOOL_ADMIN` 会自动降级为 `TEACHER`；
+- 将目标用户（`userId`）设置为该组织 `SCHOOL_ADMIN`；
+- 不允许将 `SUPER_ADMIN` 账号移交为组织管理员。
 
 请求示例：
 ```json
-{ "orgId": 5, "username": "org_admin_5", "password": "12345678" }
+{ "orgId": 5, "userId": 15 }
 ```
 成功响应示例：
 ```json
