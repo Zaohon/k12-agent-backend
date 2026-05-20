@@ -1,13 +1,17 @@
 ﻿import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import type { Response } from 'express';
 import { PrismaService } from '../prisma.service';
+import { LlmService, type AgentLlmConfig, type LlmMessage } from '../llm/llm.service';
 
 @Injectable()
 export class SessionService {
   private static readonly DEFAULT_TOPIC = '\u65b0\u5bf9\u8bdd';
   private static readonly DEFAULT_AGENT_ID = 59;
 
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private llmService: LlmService,
+  ) {}
 
   async listSessions(userId: number) {
     return this.prisma.conversation.findMany({
@@ -98,7 +102,7 @@ export class SessionService {
       take: 10,
     });
 
-    const messages: Array<{ role: 'system' | 'user' | 'assistant'; content: string }> = history
+    const messages: LlmMessage[] = history
       .reverse()
       .map((m) => ({
         role: m.role as 'user' | 'assistant',
@@ -106,12 +110,19 @@ export class SessionService {
       }));
 
     let model = process.env.AI_MODEL || 'deepseek-v4-flash';
+    let agentForLlm: AgentLlmConfig | null = null;
     if (session.agentId) {
       const agent = await this.prisma.agent.findUnique({ where: { id: session.agentId } });
       if (!agent) {
         throw new ForbiddenException('会话绑定的智能体不存在');
       }
       model = agent.model || model;
+      agentForLlm = {
+        model: agent.model,
+        enableWebSearch: agent.enableWebSearch,
+        enableWebParse: agent.enableWebParse,
+        enableDeepThink: agent.enableDeepThink,
+      };
       messages.unshift({
         role: 'system',
         content: agent.systemPrompt,
@@ -123,34 +134,11 @@ export class SessionService {
     });
     messages.push({ role: 'user', content: text });
 
-    const aiRes = await this.callAI(messages, true, model);
-
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    let fullResponse = '';
-    if (aiRes.ok && aiRes.body) {
-      // @ts-ignore
-      for await (const chunk of aiRes.body) {
-        const decoder = new TextDecoder();
-        const str = decoder.decode(chunk);
-        try {
-          const lines = str.split('\n');
-          for (const line of lines) {
-            if (!line.startsWith('data:')) continue;
-            const payload = line.slice(5).trim();
-            if (!payload || payload === '[DONE]') continue;
-            const data = JSON.parse(payload);
-            fullResponse += data.choices?.[0]?.delta?.content || '';
-          }
-        } catch (e) {}
-        res.write(chunk);
-      }
-    } else {
-      const errText = await aiRes.text().catch(() => '{"error":"AI Service Error"}');
-      res.write(errText);
-    }
+    const { fullResponse } = await this.llmService.streamToSse(messages, res, agentForLlm, model);
 
     if (fullResponse) {
       await this.prisma.message.create({
@@ -189,10 +177,12 @@ export class SessionService {
     const summaryPrompt =
       `Summarize this conversation into one short Chinese title within 10 characters. ` +
       `Do not include punctuation or quotes. User: ${userMsg}. Assistant: ${aiMsg}`;
-    const result = await (
-      await this.callAI([{ role: 'user', content: summaryPrompt }], false, model)
-    ).json();
-    const topic = this.normalizeTopic(result.choices?.[0]?.message?.content);
+    const result = await this.llmService.completeText(
+      [{ role: 'user', content: summaryPrompt }],
+      null,
+      model,
+    );
+    const topic = this.normalizeTopic(result.text);
     await this.prisma.conversation.update({
       where: { id: sessionId },
       data: { topic },
@@ -228,32 +218,4 @@ export class SessionService {
     return false;
   }
 
-  private async callAI(messages: any[], stream = false, modelOverride?: string) {
-    const apiKey = process.env.AI_API_KEY || '';
-    const apiBase = (process.env.AI_API_BASE || 'https://api.deepseek.com').replace(/\/$/, '');
-    const model = modelOverride || process.env.AI_MODEL || 'deepseek-v4-flash';
-
-    // 处理自签名证书问题 - 使用 undici 的 Agent
-    let fetchImpl: any = fetch;
-    if (process.env.NODE_TLS_REJECT_UNAUTHORIZED === '0') {
-      const { Agent, setGlobalDispatcher } = require('undici');
-      const insecureAgent = new Agent({
-        connect: { rejectUnauthorized: false },
-      });
-      setGlobalDispatcher(insecureAgent);
-    }
-
-    return fetch(`${apiBase}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        messages,
-        stream,
-      }),
-    });
-  }
 }

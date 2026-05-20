@@ -91,12 +91,6 @@
 | `POST /session/update-topic/:id` | 登录用户，仅本人会话 |
 | `POST /session/chat/:id` | 登录用户，仅本人会话 |
 
-### Chat
-
-| 接口 | 权限 |
-| --- | --- |
-| `POST /chat/stream/:agentId` | 登录用户（受 token 配额限制） |
-
 ### Approval
 
 | 接口 | 权限 |
@@ -755,27 +749,7 @@ curl -X DELETE "http://localhost:3000/session/102" -H "Authorization: Bearer <to
 
 ---
 
-## 5) 聊天 Chat（一次性）
-
-### POST `/chat/stream/:agentId`
-请求示例：
-```json
-{ "subject": "初二数学", "topic": "一元二次方案}
-```
-成功响应示例：
-```text
-data: {"choices":[{"delta":{"content":"以下是你的教学方案}}]}
-
-data: [DONE]
-```
-失败响应示例：
-```json
-{ "statusCode": 403, "message": "您的 Token 额度已耗尽，或账号状态异 "error": "Forbidden" }
-```
-
----
-
-## 6) 组织 Org
+## 5) 组织 Org
 
 ### GET `/org/list`
 用途：获取组织列表（仅 `SUPER_ADMIN`）。
@@ -902,7 +876,7 @@ curl -X GET "http://localhost:3000/org/5/users" -H "Authorization: Bearer <token
 
 ---
 
-## 7) 模型与接口配置 Model Config
+## 6) 模型与接口配置 Model Config
 
 ### GET `/model-config`
 用途：获取当前用户所在组织的模型与接口配置。
@@ -977,7 +951,7 @@ curl -X GET "http://localhost:3000/model-config" -H "Authorization: Bearer <toke
 
 ---
 
-## 8) 审批 Approval
+## 7) 审批 Approval
 
 ### GET `/approval/pending`
 用途：获取审批列表（按当前用户所属组织返回该组织下智能体，包含所有 `approvalStatus`）。
@@ -1023,7 +997,7 @@ curl -X GET "http://localhost:3000/approval/pending" -H "Authorization: Bearer <
 
 ---
 
-## 9) 分类 Category
+## 8) 分类 Category
 
 ### GET `/category/list`
 用途：获取分类列表（所有已登录用户可用）。
@@ -1226,7 +1200,7 @@ curl -X DELETE "http://localhost:3000/category/28/agents/1" -H "Authorization: B
 
 ---
 
-## 10) 我的智能体推荐调用顺序（前端）
+## 9) 我的智能体推荐调用顺序（前端）
 
 1. `GET /agent/my`
 2. `GET /category/list`
@@ -1238,7 +1212,7 @@ curl -X DELETE "http://localhost:3000/category/28/agents/1" -H "Authorization: B
 
 ---
 
-## 11) 知识库 Knowledge
+## 10) 知识库 Knowledge
 
 ### 总体说明
 当前知识库模块定位为“个人知识库”，不是组织共享网盘。
@@ -1765,7 +1739,7 @@ curl -X GET "http://localhost:3000/knowledge/storage/stats" -H "Authorization: B
 
 ---
 
-## 12) 枚举定义（约定）
+## 11) 枚举定义（约定）
 
 ### 用户身份（role）
 - `SUPER_ADMIN`：超级管理员（系统级）
