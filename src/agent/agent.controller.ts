@@ -1,11 +1,16 @@
-﻿import { BadRequestException, Controller, Get, Post, Body, Req, UseGuards, Param, ParseIntPipe, Query, Delete } from '@nestjs/common';
+﻿import { BadRequestException, Controller, Get, Post, Body, Req, UseGuards, Param, ParseIntPipe, Query, Delete, Res, StreamableFile } from '@nestjs/common';
+import type { Response } from 'express';
 import { AgentService } from './agent.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { LlmService, type AgentLlmConfig, type LlmMessage } from '../llm/llm.service';
 
 @Controller('agent')
 @UseGuards(JwtAuthGuard)
 export class AgentController {
-  constructor(private readonly agentService: AgentService) {}
+  constructor(
+    private readonly agentService: AgentService,
+    private readonly llmService: LlmService,
+  ) {}
 
   @Get('discover')
   async getDiscoverableAgents(@Req() req: any, @Query('categoryId') categoryId?: string) {
@@ -90,6 +95,37 @@ ${rawText}`;
         optimizedText,
       },
     };
+  }
+
+  /**
+   * Agent debug endpoint — streams LLM response for prompt testing.
+   *
+   * Request body:
+   *   systemPrompt  (required) — the agent's system prompt
+   *   userMessage   (required) — the user's test message
+   */
+  @Post('debug')
+  async debugAgent(@Req() req: any, @Res() res: Response, @Body() body: any) {
+    const systemPrompt = body?.systemPrompt;
+    const userMessage = body?.userMessage;
+
+    if (!systemPrompt || typeof systemPrompt !== 'string' || !systemPrompt.trim()) {
+      throw new BadRequestException('systemPrompt 不能为空');
+    }
+    if (!userMessage || typeof userMessage !== 'string' || !userMessage.trim()) {
+      throw new BadRequestException('userMessage 不能为空');
+    }
+
+    const messages: LlmMessage[] = [
+      { role: 'system', content: systemPrompt.trim() },
+      { role: 'user', content: userMessage.trim() },
+    ];
+
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+
+    await this.llmService.streamToSse(messages, res, null);
   }
 
   @Delete(':id')
