@@ -98,6 +98,11 @@ export class OssService {
     const uploadUrl = this.client.signatureUrl(key, {
       method: 'PUT',
       expires: expiresInSeconds,
+      ...(contentType
+        ? {
+            'Content-Type': contentType,
+          }
+        : {}),
     });
 
     return {
