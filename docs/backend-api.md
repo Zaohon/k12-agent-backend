@@ -1,6 +1,6 @@
 ﻿# K12 Agent Backend API 文档（含输入输出示例）
 
-更新时间：2026-05-20
+更新时间：2026-05-20（新增 /agent/debug）
 适用项目：`k12-agent-backend`
 
 ## 通用说明
@@ -56,6 +56,7 @@
 | `GET /agent/:id` | 登录用户 |
 | `POST /agent/create` | 登录用户 |
 | `POST /agent/optimize` | 登录用户 |
+| `POST /agent/debug` | 登录用户 |
 | `POST /agent/update/:id` | 创建者本人或 `SUPER_ADMIN` |
 | `DELETE /agent/:id` | 创建者本人或 `SUPER_ADMIN` |
 
@@ -671,6 +672,43 @@ curl -X DELETE "http://localhost:3000/agent/18" -H "Authorization: Bearer <token
 {
   "statusCode": 400,
   "message": "大模型优化失败，请稍后重试",
+  "error": "Bad Request"
+}
+```
+
+### POST `/agent/debug`
+用途：调试智能体系统提示词（systemPrompt）的效果。传入自定义的 systemPrompt 和一条用户消息，后端以 SSE 流式返回 LLM 的回复。
+
+说明：
+- 此接口只做**单次 prompt 调试**，不绑定任何已有智能体
+- 使用默认模型（环境变量 `AI_MODEL`），不带 webSearch / deepThink 等额外能力
+- 返回格式与 `/session/chat/:id` 相同的 SSE 流
+
+请求示例：
+```bash
+curl -X POST "http://localhost:3000/agent/debug" \
+  -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "systemPrompt": "你是一名资深数学老师，请用启发式教学方式讲解数学问题。",
+    "userMessage": "请解释一下什么是勾股定理？"
+  }'
+```
+
+成功响应示例（SSE 流）：
+```text
+data: {"choices":[{"delta":{"content":"勾股定理"}}]}
+
+data: {"choices":[{"delta":{"content":"（毕达哥拉斯定理）"}}]}
+
+data: [DONE]
+```
+
+失败响应示例（参数为空）：
+```json
+{
+  "statusCode": 400,
+  "message": "systemPrompt 不能为空",
   "error": "Bad Request"
 }
 ```
