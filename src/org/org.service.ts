@@ -99,7 +99,14 @@ export class OrgService {
   }
 
   async getOrgUsers(currentUser: any, orgId: number) {
-    if (currentUser.role !== 'SUPER_ADMIN') throw new ForbiddenException('权限不足');
+    const isSuperAdmin = currentUser.role === 'SUPER_ADMIN';
+    const isCurrentOrgSchoolAdmin =
+      currentUser.role === 'SCHOOL_ADMIN' && Number(currentUser.orgId) === Number(orgId);
+
+    if (!isSuperAdmin && !isCurrentOrgSchoolAdmin) {
+      throw new ForbiddenException('权限不足');
+    }
+
     return this.prisma.user.findMany({
       where: { orgId },
       orderBy: { role: 'asc' },
@@ -108,7 +115,14 @@ export class OrgService {
   }
 
   async batchCreateUsers(currentUser: any, orgId: number, users: any[]) {
-    if (currentUser.role !== 'SUPER_ADMIN') throw new ForbiddenException('权限不足');
+    const isSuperAdmin = currentUser.role === 'SUPER_ADMIN';
+    const isCurrentOrgSchoolAdmin =
+      currentUser.role === 'SCHOOL_ADMIN' && Number(currentUser.orgId) === Number(orgId);
+
+    if (!isSuperAdmin && !isCurrentOrgSchoolAdmin) {
+      throw new ForbiddenException('权限不足');
+    }
+
     let successCount = 0;
 
     const roleMapping: Record<string, string> = {

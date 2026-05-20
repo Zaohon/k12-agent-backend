@@ -1,6 +1,6 @@
 ﻿# K12 Agent Backend API 文档（含输入输出示例）
 
-更新时间：2026-05-18
+更新时间：2026-05-20
 适用项目：`k12-agent-backend`
 
 ## 通用说明
@@ -15,6 +15,137 @@
 ```json
 { "statusCode": 401, "message": "Unauthorized", "error": "Unauthorized" }
 ```
+
+---
+
+## 权限速查（按当前代码实现）
+
+说明：
+- `公开`：无需 JWT。
+- `登录用户`：任意已登录用户。
+- `SUPER_ADMIN`：仅超级管理员。
+- `SCHOOL_ADMIN`：仅组织管理员。
+- `管理员及以上`：`SUPER_ADMIN` 或 `SCHOOL_ADMIN`。
+- `同组织 SCHOOL_ADMIN`：`SCHOOL_ADMIN` 且 `currentUser.orgId === 路径里的 orgId`。
+- `本人资源`：只能操作自己的会话、知识库文件/文件夹、自己创建的智能体等。
+
+### 公开接口
+
+| 接口 | 权限 |
+| --- | --- |
+| `GET /` | 公开 |
+| `POST /auth/sms_send` | 公开 |
+| `POST /auth/login` | 公开 |
+| `POST /auth/password-login` | 公开 |
+| `POST /auth/register` | 公开 |
+
+### Auth
+
+| 接口 | 权限 |
+| --- | --- |
+| `GET /auth/profile` | 登录用户 |
+| `POST /auth/update-password` | 登录用户 |
+
+### Agent
+
+| 接口 | 权限 |
+| --- | --- |
+| `GET /agent/discover` | 登录用户 |
+| `GET /agent/featured` | 登录用户 |
+| `GET /agent/my` | 登录用户 |
+| `GET /agent/:id` | 登录用户 |
+| `POST /agent/create` | 登录用户 |
+| `POST /agent/optimize` | 登录用户 |
+| `POST /agent/update/:id` | 创建者本人或 `SUPER_ADMIN` |
+| `DELETE /agent/:id` | 创建者本人或 `SUPER_ADMIN` |
+
+补充：
+- `POST /agent/create` 创建 `PUBLIC` / `ORG_VISIBLE` 智能体时，会进入 `PENDING` 审批。
+- `GET /agent/:id` 当前实现只要求登录，不额外校验可见性。
+
+### Category
+
+| 接口 | 权限 |
+| --- | --- |
+| `GET /category/list` | 登录用户（需绑定组织；`SUPER_ADMIN` 取当前有效组织） |
+| `GET /category/:id/agents` | 登录用户；非 `SUPER_ADMIN` 仅可查看本组织分类 |
+| `POST /category/create` | `SUPER_ADMIN` 或 `SCHOOL_ADMIN` |
+| `PATCH /category/:id` | `SUPER_ADMIN` 或本组织 `SCHOOL_ADMIN` |
+| `DELETE /category/:id` | `SUPER_ADMIN` 或本组织 `SCHOOL_ADMIN` |
+| `DELETE /category/:id/agents/:agentId` | `SUPER_ADMIN` 或当前分类所属组织内已登录用户 |
+| `PATCH /category/:id/agents/:agentId` | `SUPER_ADMIN` 或当前分类所属组织内已登录用户 |
+| `PUT /category/:id/agents` | `SUPER_ADMIN` 或当前分类所属组织内已登录用户 |
+
+补充：
+- `精选页` / `推荐页` 为保留分类名，存在额外保护逻辑。
+- 上面 3 条分类-智能体关系接口，当前代码没有额外限制到管理员角色，文档按现状记录。
+
+### Session
+
+| 接口 | 权限 |
+| --- | --- |
+| `GET /session/list` | 登录用户，仅本人会话 |
+| `POST /session/create` | 登录用户 |
+| `GET /session/history/:id` | 登录用户，仅本人会话 |
+| `DELETE /session/:id` | 登录用户，仅本人会话 |
+| `POST /session/update-topic/:id` | 登录用户，仅本人会话 |
+| `POST /session/chat/:id` | 登录用户，仅本人会话 |
+
+### Chat
+
+| 接口 | 权限 |
+| --- | --- |
+| `POST /chat/stream/:agentId` | 登录用户（受 token 配额限制） |
+
+### Approval
+
+| 接口 | 权限 |
+| --- | --- |
+| `GET /approval/pending` | 管理员及以上 |
+| `POST /approval/review/:id` | `SCHOOL_ADMIN` |
+
+补充：
+- `POST /approval/review/:id` 还要求只能审批本组织智能体。
+- 若智能体 `visibility === PUBLIC`，该接口会拒绝处理。
+
+### Model Config
+
+| 接口 | 权限 |
+| --- | --- |
+| `GET /model-config` | 管理员及以上 |
+| `POST /model-config` | 管理员及以上 |
+
+### Organization
+
+| 接口 | 权限 |
+| --- | --- |
+| `GET /org/list` | `SUPER_ADMIN` |
+| `POST /org/create` | `SUPER_ADMIN` |
+| `POST /org/admin` | `SUPER_ADMIN` |
+| `GET /org/:orgId/users` | `SUPER_ADMIN` 或同组织 `SCHOOL_ADMIN` |
+| `POST /org/:orgId/users/batch` | `SUPER_ADMIN` 或同组织 `SCHOOL_ADMIN` |
+
+### Knowledge
+
+| 接口 | 权限 |
+| --- | --- |
+| `GET /knowledge/system/agent-logos` | 登录用户 |
+| `GET /knowledge/entries` | 登录用户，仅本人知识库数据 |
+| `GET /knowledge/folders` | 登录用户，仅本人知识库数据 |
+| `GET /knowledge/folders/:id` | 登录用户，仅本人知识库数据 |
+| `POST /knowledge/folders` | 登录用户，仅写入本人知识库 |
+| `PATCH /knowledge/folders/:id` | 登录用户，仅本人文件夹 |
+| `DELETE /knowledge/folders/:id` | 登录用户，仅本人文件夹 |
+| `GET /knowledge/files` | 登录用户，仅本人知识库数据 |
+| `GET /knowledge/files/recent` | 登录用户，仅本人知识库数据 |
+| `POST /knowledge/files/batch-move` | 登录用户，仅本人文件 |
+| `POST /knowledge/files/batch-delete` | 登录用户，仅本人文件 |
+| `GET /knowledge/files/:id` | 登录用户，仅本人文件 |
+| `PATCH /knowledge/files/:id` | 登录用户，仅本人文件 |
+| `POST /knowledge/files/upload-policy` | 登录用户，仅为本人文件生成上传凭证 |
+| `POST /knowledge/files` | 登录用户，仅为本人文件创建记录 |
+| `DELETE /knowledge/files/:id` | 登录用户，仅本人文件 |
+| `GET /knowledge/storage/stats` | 登录用户，仅本人统计 |
 
 ---
 
