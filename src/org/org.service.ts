@@ -10,8 +10,17 @@ export class OrgService {
   constructor(private prisma: PrismaService) {}
 
   async listOrganizations(currentUser: any) {
-    if (currentUser.role !== 'SUPER_ADMIN') throw new ForbiddenException('仅超级管理员可操作');
+    if (currentUser.role !== 'SUPER_ADMIN' && currentUser.role !== 'SCHOOL_ADMIN') {
+      throw new ForbiddenException('权限不足');
+    }
+
+    const whereClause: any =
+      currentUser.role === 'SCHOOL_ADMIN'
+        ? { id: Number(currentUser.orgId) }
+        : {};
+
     return this.prisma.organization.findMany({
+      where: whereClause,
       include: {
         _count: {
           select: { users: true, agents: true },
