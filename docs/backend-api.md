@@ -599,8 +599,8 @@ curl -X GET "http://localhost:3000/agent/17" -H "Authorization: Bearer <token>"
 
 删除规则：
 - 仅创建者本人或 `SUPER_ADMIN` 可以删除
-- 会先删除该智能体的分类关联
-- 会将引用该智能体的会话 `conversation.agentId` 置空
+- 会级联删除该智能体关联的所有会话及会话中的消息
+- 会删除该智能体的分类关联
 - 最后物理删除智能体记录
 
 请求示例：

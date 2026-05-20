@@ -284,11 +284,9 @@ export class AgentService implements OnModuleInit {
       throw new ForbiddenException('无权限删除该智能体');
     }
 
+    // Cascade-delete all conversations (their messages are cascade-deleted by Prisma)
+    await this.prisma.conversation.deleteMany({ where: { agentId: id } });
     await this.prisma.agentCategory.deleteMany({ where: { agentId: id } });
-    await this.prisma.conversation.updateMany({
-      where: { agentId: id },
-      data: { agentId: null },
-    });
     await this.prisma.agent.delete({ where: { id } });
   }
 }
