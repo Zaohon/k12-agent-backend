@@ -5,18 +5,6 @@ import { PrismaService } from '../prisma.service';
 export class AgentService implements OnModuleInit {
   constructor(private prisma: PrismaService) {}
 
-  private async ensurePublicOrg() {
-    let publicOrg = await this.prisma.organization.findUnique({
-      where: { orgName: '公共网点 (默认)' },
-    });
-    if (!publicOrg) {
-      publicOrg = await this.prisma.organization.create({
-        data: { orgName: '公共网点 (默认)' },
-      });
-    }
-    return publicOrg;
-  }
-
   private async ensureSystemAdminBoundToPublicOrg() {
     return this.prisma.user.findFirst({
       where: {
@@ -185,30 +173,25 @@ export class AgentService implements OnModuleInit {
   async getDiscoverableAgents(user: { id: number, role: string, orgId?: number }, categoryId?: number) {
     const whereClause: any = {
       OR: [
-        // Condition 1: Public applications and MUST be approved
         {
           visibility: 'PUBLIC',
           approvalStatus: 'APPROVED',
         },
-        // Condition 2: Organization-visible apps inside the SAME org and MUST be approved
         {
           visibility: 'ORG_VISIBLE',
           approvalStatus: 'APPROVED',
           orgId: user.orgId,
         },
-        // Condition 3: Created by the user themselves (Private or pending)
         {
           creatorId: user.id
         }
       ]
     };
 
-    // If Super Admin, bypass some visibility checks but keep categorization
     if (user.role === 'SUPER_ADMIN') {
        delete whereClause.OR;
     }
 
-    // Apply category filter if provided
     if (categoryId) {
        whereClause.categories = {
           some: { categoryId }
@@ -244,10 +227,6 @@ export class AgentService implements OnModuleInit {
      });
   }
 
-  /**
-   * User creates a new Agent instance.
-   * Based on PRD: Default visibility is strictly enforced.
-   */
   async createAgent(user: { id: number, orgId?: number, role: string }, data: any) {
     const cleanData = this.normalizeAgentConfigForCreate(data);
     const isPublic = cleanData.visibility !== 'PRIVATE';
@@ -272,7 +251,6 @@ export class AgentService implements OnModuleInit {
     }
 
     const cleanData = this.normalizeAgentConfigForUpdate(data);
-    // Basic backend protection for status downgrade if visibility gets elevated
     if (cleanData.visibility === 'PUBLIC' || cleanData.visibility === 'ORG_VISIBLE') {
       cleanData.approvalStatus = 'PENDING';
     } else if (cleanData.visibility === 'PRIVATE') {

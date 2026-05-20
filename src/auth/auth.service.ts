@@ -5,6 +5,7 @@ import * as bcrypt from 'bcrypt';
 import Dysmsapi20170525, * as $Dysmsapi20170525 from '@alicloud/dysmsapi20170525';
 import * as OpenApi from '@alicloud/openapi-client';
 import * as Util from '@alicloud/tea-util';
+import { ensureDefaultKnowledgeFolders } from '../knowledge/knowledge-defaults';
 
 const PUBLIC_ORG_NAME = '\u516c\u5171\u7f51\u70b9 (\u9ed8\u8ba4)';
 
@@ -119,18 +120,6 @@ export class AuthService {
     };
   }
 
-  private async ensurePublicOrg() {
-    let publicOrg = await this.prisma.organization.findUnique({
-      where: { orgName: '公共网点（默认）' },
-    });
-    if (!publicOrg) {
-      publicOrg = await this.prisma.organization.create({
-        data: { orgName: '公共网点（默认）' },
-      });
-    }
-    return publicOrg;
-  }
-
   private async makeDefaultUsername(phone: string) {
     const base = 'default';
     const baseUser = await this.prisma.user.findUnique({ where: { username: base } });
@@ -182,15 +171,24 @@ export class AuthService {
       });
       const username = await this.makeDefaultUsername(normalized);
 
-      user = await this.prisma.user.create({
-        data: {
-          username,
-          phone: normalized,
-          passwordHash: null,
-          passwordSetAt: null,
-          role: 'STUDENT',
-          orgId: org.id,
-        },
+      user = await this.prisma.$transaction(async (tx) => {
+        const createdUser = await tx.user.create({
+          data: {
+            username,
+            phone: normalized,
+            passwordHash: null,
+            passwordSetAt: null,
+            role: 'STUDENT',
+            orgId: org.id,
+          },
+        });
+
+        await ensureDefaultKnowledgeFolders(tx, {
+          ownerId: createdUser.id,
+          orgId: createdUser.orgId,
+        });
+
+        return createdUser;
       });
     }
 

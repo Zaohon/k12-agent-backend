@@ -1,6 +1,7 @@
 ﻿import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import * as bcrypt from 'bcrypt';
+import { ensureDefaultKnowledgeFolders } from '../knowledge/knowledge-defaults';
 
 @Injectable()
 export class OrgService {
@@ -122,14 +123,21 @@ export class OrgService {
       const exist = await this.prisma.user.findUnique({ where: { username: String(u.username) } });
       if (!exist && u.password) {
         const pwHash = await bcrypt.hash(String(u.password), 10);
-        await this.prisma.user.create({
-          data: {
-            username: String(u.username),
-            passwordHash: pwHash,
-            passwordSetAt: new Date(),
-            role: roleValue,
-            orgId,
-          },
+        await this.prisma.$transaction(async (tx) => {
+          const createdUser = await tx.user.create({
+            data: {
+              username: String(u.username),
+              passwordHash: pwHash,
+              passwordSetAt: new Date(),
+              role: roleValue,
+              orgId,
+            },
+          });
+
+          await ensureDefaultKnowledgeFolders(tx, {
+            ownerId: createdUser.id,
+            orgId: createdUser.orgId,
+          });
         });
         successCount++;
       }
