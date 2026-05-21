@@ -1,6 +1,6 @@
 ﻿# K12 Agent Backend API 文档（含输入输出示例）
 
-更新时间：2026-05-21（补充文件解析复用链路、会话附件能力与组织成员硬删除接口）
+更新时间：2026-05-21（补充文件解析复用链路、语音转文字接口、会话附件能力、审批权限调整与组织成员硬删除接口）
 适用项目：`k12-agent-backend`
 
 ## 通用说明
@@ -91,17 +91,19 @@
 | `DELETE /session/:id` | 登录用户，仅本人会话 |
 | `POST /session/update-topic/:id` | 登录用户，仅本人会话 |
 | `POST /session/chat/:id` | 登录用户，仅本人会话 |
+| `POST /chat/voice` | 登录用户 |
 
 ### Approval
 
 | 接口 | 权限 |
 | --- | --- |
 | `GET /approval/pending` | 管理员及以上 |
-| `POST /approval/review/:id` | `SCHOOL_ADMIN` |
+| `POST /approval/review/:id` | `SUPER_ADMIN` 或 `SCHOOL_ADMIN` |
 
 补充：
-- `POST /approval/review/:id` 还要求只能审批本组织智能体。
-- 若智能体 `visibility === PUBLIC`，该接口会拒绝处理。
+- `SCHOOL_ADMIN` 只能审批本组织智能体。
+- `SCHOOL_ADMIN` 不能审批 `visibility === PUBLIC` 的智能体。
+- `SUPER_ADMIN` 可兜底审批所有类型智能体。
 
 ### Model Config
 
@@ -877,6 +879,46 @@ curl -X DELETE "http://localhost:3000/session/102" -H "Authorization: Bearer <to
 { "success": true }
 ```
 
+### POST `/chat/voice`
+用途：接收一段音频文件，后端自动上传 OSS，调用阿里云非实时语音识别，再把转写文本返回给前端；适合“录完语音，再作为普通输入发送”的场景。
+
+请求方式：
+- `Content-Type: multipart/form-data`
+- 文件字段名固定为 `file`
+- 可选字段：`language`
+
+`curl` 示例：
+```bash
+curl -X POST "http://localhost:3000/chat/voice" \
+  -H "Authorization: Bearer <token>" \
+  -F "file=@./voice.wav" \
+  -F "language=zh"
+```
+
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": {
+    "text": "请帮我整理一份初中物理教案",
+    "fileName": "voice.wav",
+    "mimeType": "audio/wav",
+    "size": 183424,
+    "ossKey": "chat-voice/77/2026/05/21/uuid.wav",
+    "fileUrl": "https://your-bucket.oss-cn-shanghai.aliyuncs.com/chat-voice/77/2026/05/21/uuid.wav",
+    "taskId": "c3f0c1b7-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+  }
+}
+```
+
+说明：
+- 这是“语音转文字”辅助接口，不会自动调用 `/session/chat/:id`。
+- 前端拿到 `data.text` 后，可回填到输入框，再按普通文本消息发送。
+- 后端当前使用阿里云百炼 `qwen3-asr-flash-filetrans` 模型。
+- 后端读取环境变量 `AI_API_KEY` 作为阿里云百炼鉴权凭证。
+- 后端会先把音频存到 OSS，再将 OSS 签名下载链接提交给阿里云转写任务，因此不要求 OSS 桶必须公网可读。
+- 当前接口为同步等待模式；如果阿里云转写超时，接口会直接返回失败。
+
 ---
 
 ## 5) 组织 Org
@@ -1130,9 +1172,9 @@ curl -X GET "http://localhost:3000/model-config" -H "Authorization: Bearer <toke
 ## 7) 审批 Approval
 
 ### GET `/approval/pending`
-用途：获取审批列表（按当前用户所属组织返回该组织下智能体，包含所有 `approvalStatus`）。
+用途：获取审批列表（包含所有 `approvalStatus`）。
 规则：
-- `SUPER_ADMIN`：只看公共组织（或其绑定组织）下智能体；
+- `SUPER_ADMIN`：可查看所有组织下智能体；
 - `SCHOOL_ADMIN`：只看当前组织下智能体；
 - 其他角色无权限。
 
@@ -1158,6 +1200,10 @@ curl -X GET "http://localhost:3000/approval/pending" -H "Authorization: Bearer <
 ```
 
 ### POST `/approval/review/:id`
+说明：
+- `SCHOOL_ADMIN`：只能审批本组织、且 `visibility !== PUBLIC` 的智能体。
+- `SUPER_ADMIN`：可兜底审批所有类型智能体。
+
 请求示例（通过）：
 ```json
 { "status": "APPROVED", "categoryId": 1, "isFeatured": false }

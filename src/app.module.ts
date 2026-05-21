@@ -13,6 +13,7 @@ import { KnowledgeModule } from './knowledge/knowledge.module';
 import { OssModule } from './oss/oss.module';
 import { ModelConfigModule } from './model-config/model-config.module';
 import { LlmModule } from './llm/llm.module';
+import { ChatModule } from './chat/chat.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { LlmModule } from './llm/llm.module';
     OssModule,
     ModelConfigModule,
     LlmModule,
+    ChatModule,
   ],
   controllers: [AppController],
   providers: [AppService, PrismaService],
