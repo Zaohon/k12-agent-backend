@@ -817,17 +817,17 @@ data: [DONE]
 
 前端传附件说明：
 - `attachments` 不是直接传本地 `File` 对象，也不是传 OSS URL；这里要传后端知识库文件记录的 `id`。
-- 当前约定每个用户都会有一个默认的“自动上传”文件夹；聊天时用户新选的本地附件，前端不需要自己定位该文件夹 id，可以直接省略 `folderId`，由后端自动落到这个目录。
+- 当前约定每个用户都会有一个默认的“自动上传”文件夹；在当前聊天页面上传附件时，前端不需要也不应该传 `folderId`，后端会自动把文件落到这个目录。
 - 当前推荐链路是：
-  1. 调用 `POST /knowledge/files/upload-policy`，可不传 `folderId`
+  1. 调用 `POST /knowledge/files/upload-policy`，不要传 `folderId`
   2. 前端直传文件到返回的 `uploadUrl`
-  3. 上传成功后调用 `POST /knowledge/files` 创建 `KnowledgeFile`，可不传 `folderId`
+  3. 上传成功后调用 `POST /knowledge/files` 创建 `KnowledgeFile`，不要传 `folderId`
   4. 取返回结果里的 `data.id`，作为 `attachments[].fileId`
   5. 最后再调用 `POST /session/chat/:id`
 - 如果前端让用户从“已有知识库文件”里选附件，直接把选中文件的 `id` 组装进 `attachments` 即可，不需要重复上传。
 
 补充说明：
-- `POST /knowledge/files/upload-policy` 和 `POST /knowledge/files` 中，如果 `folderId` 省略，后端会自动使用当前用户的“自动上传”文件夹；若该目录不存在，后端会自动创建。
+- 在聊天页面上传附件时，`POST /knowledge/files/upload-policy` 和 `POST /knowledge/files` 的请求体里都不要带 `folderId`；后端会自动使用当前用户的“自动上传”文件夹，若该目录不存在会自动创建。
 - “自动上传”文件夹只是上传落点约定，不影响后端复用逻辑；会话里真正传给 `/session/chat/:id` 的仍然只有 `fileId`。
 - 同一个文件一旦落成 `KnowledgeFile` 并解析成功，后续多轮对话会直接复用 `parsedText`。
 
