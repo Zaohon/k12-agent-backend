@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Req, UseGuards, Param } from '@nestjs/common';
+import { Controller, Get, Post, Body, Req, UseGuards, Param, Delete, ParseIntPipe } from '@nestjs/common';
 import { OrgService } from './org.service';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 
@@ -36,5 +36,15 @@ export class OrgController {
   async batchCreateUsers(@Req() req: any, @Param('orgId') orgId: string, @Body() body: { users: any[] }) {
     const result = await this.orgService.batchCreateUsers(req.user, parseInt(orgId), body.users);
     return { success: true, data: result };
+  }
+
+  @Delete(':orgId/users/:userId')
+  async deleteOrgUser(
+    @Req() req: any,
+    @Param('orgId', ParseIntPipe) orgId: number,
+    @Param('userId', ParseIntPipe) userId: number,
+  ) {
+    await this.orgService.deleteOrgUser(req.user, orgId, userId);
+    return { success: true };
   }
 }

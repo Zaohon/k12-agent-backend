@@ -1,6 +1,6 @@
 ﻿# K12 Agent Backend API 文档（含输入输出示例）
 
-更新时间：2026-05-20（新增 /agent/debug）
+更新时间：2026-05-21（新增组织成员硬删除接口）
 适用项目：`k12-agent-backend`
 
 ## 通用说明
@@ -119,6 +119,7 @@
 | `POST /org/admin` | `SUPER_ADMIN` |
 | `GET /org/:orgId/users` | `SUPER_ADMIN` 或同组织 `SCHOOL_ADMIN` |
 | `POST /org/:orgId/users/batch` | `SUPER_ADMIN` 或同组织 `SCHOOL_ADMIN` |
+| `DELETE /org/:orgId/users/:userId` | `SUPER_ADMIN` 或同组织 `SCHOOL_ADMIN` |
 
 ### Knowledge
 
@@ -868,7 +869,11 @@ curl -X GET "http://localhost:3000/org/list" -H "Authorization: Bearer <token>"
 ```
 
 ### GET `/org/:orgId/users`
-用途：获取组织下用户列表（仅 `SUPER_ADMIN`）。
+用途：获取组织下用户列表。
+
+权限：
+- `SUPER_ADMIN`
+- 同组织 `SCHOOL_ADMIN`
 
 请求示例：
 ```bash
@@ -896,7 +901,11 @@ curl -X GET "http://localhost:3000/org/5/users" -H "Authorization: Bearer <token
 ```
 
 ### POST `/org/:orgId/users/batch`
-用途：批量创建组织用户（仅 `SUPER_ADMIN`）。
+用途：批量创建组织用户。
+
+权限：
+- `SUPER_ADMIN`
+- 同组织 `SCHOOL_ADMIN`
 
 请求示例：
 ```json
@@ -910,6 +919,44 @@ curl -X GET "http://localhost:3000/org/5/users" -H "Authorization: Bearer <token
 成功响应示例：
 ```json
 { "success": true, "data": { "count": 2 } }
+```
+
+### DELETE `/org/:orgId/users/:userId`
+用途：硬删除指定组织成员。
+
+权限：
+- `SUPER_ADMIN`
+- 同组织 `SCHOOL_ADMIN`
+
+限制：
+- 不能删除当前登录账号
+- 不能删除 `SUPER_ADMIN`
+- `SCHOOL_ADMIN` 不能删除 `SCHOOL_ADMIN`
+- 目标用户必须属于路径里的组织
+
+删除影响：
+- 删除该用户本人会话及会话消息
+- 删除该用户创建的智能体，以及这些智能体关联的会话和消息
+- 删除该用户的知识库文件、文件夹和解析任务
+- 最后物理删除用户记录
+
+请求示例：
+```bash
+curl -X DELETE "http://localhost:3000/org/5/users/16" -H "Authorization: Bearer <token>"
+```
+
+成功响应示例：
+```json
+{ "success": true }
+```
+
+失败响应示例（删除自己）：
+```json
+{
+  "statusCode": 400,
+  "message": "不能删除当前登录账号",
+  "error": "Bad Request"
+}
 ```
 
 ---

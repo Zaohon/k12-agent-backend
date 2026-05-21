@@ -1,4 +1,9 @@
-﻿import { Injectable, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  ForbiddenException,
+  BadRequestException,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import * as bcrypt from 'bcrypt';
 import { ensureDefaultKnowledgeFolders } from '../knowledge/knowledge-defaults';
@@ -15,9 +20,7 @@ export class OrgService {
     }
 
     const whereClause: any =
-      currentUser.role === 'SCHOOL_ADMIN'
-        ? { id: Number(currentUser.orgId) }
-        : {};
+      currentUser.role === 'SCHOOL_ADMIN' ? { id: Number(currentUser.orgId) } : {};
 
     return this.prisma.organization.findMany({
       where: whereClause,
@@ -166,5 +169,94 @@ export class OrgService {
       }
     }
     return { count: successCount };
+  }
+
+  async deleteOrgUser(currentUser: any, orgId: number, userId: number) {
+    const isSuperAdmin = currentUser.role === 'SUPER_ADMIN';
+    const isCurrentOrgSchoolAdmin =
+      currentUser.role === 'SCHOOL_ADMIN' && Number(currentUser.orgId) === Number(orgId);
+
+    if (!isSuperAdmin && !isCurrentOrgSchoolAdmin) {
+      throw new ForbiddenException('权限不足');
+    }
+
+    if (Number(currentUser.id) === Number(userId)) {
+      throw new BadRequestException('不能删除当前登录账号');
+    }
+
+    const targetUser = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!targetUser || targetUser.deletedAt) {
+      throw new NotFoundException('目标用户不存在');
+    }
+
+    if (Number(targetUser.orgId) !== Number(orgId)) {
+      throw new BadRequestException('目标用户不属于该组织');
+    }
+
+    if (targetUser.role === 'SUPER_ADMIN') {
+      throw new BadRequestException('超级管理员账号不能被删除');
+    }
+
+    if (currentUser.role === 'SCHOOL_ADMIN' && targetUser.role === 'SCHOOL_ADMIN') {
+      throw new BadRequestException('组织管理员不能删除组织管理员');
+    }
+
+    await this.prisma.$transaction(async (tx) => {
+      const createdAgentIds = (
+        await tx.agent.findMany({
+          where: { creatorId: userId },
+          select: { id: true },
+        })
+      ).map((item) => item.id);
+
+      const ownedConversationIds = (
+        await tx.conversation.findMany({
+          where: { userId },
+          select: { id: true },
+        })
+      ).map((item) => item.id);
+
+      const ownedFileIds = (
+        await tx.knowledgeFile.findMany({
+          where: { ownerId: userId },
+          select: { id: true },
+        })
+      ).map((item) => item.id);
+
+      if (createdAgentIds.length > 0) {
+        await tx.conversation.deleteMany({
+          where: { agentId: { in: createdAgentIds } },
+        });
+        await tx.agentCategory.deleteMany({
+          where: { agentId: { in: createdAgentIds } },
+        });
+        await tx.agent.deleteMany({
+          where: { id: { in: createdAgentIds } },
+        });
+      }
+
+      if (ownedConversationIds.length > 0) {
+        await tx.conversation.deleteMany({
+          where: { id: { in: ownedConversationIds } },
+        });
+      }
+
+      if (ownedFileIds.length > 0) {
+        await tx.knowledgeFileJob.deleteMany({
+          where: { fileId: { in: ownedFileIds } },
+        });
+        await tx.knowledgeFile.deleteMany({
+          where: { id: { in: ownedFileIds } },
+        });
+      }
+
+      await tx.knowledgeFolder.deleteMany({
+        where: { ownerId: userId },
+      });
+
+      await tx.user.delete({
+        where: { id: userId },
+      });
+    });
   }
 }
