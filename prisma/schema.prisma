@@ -164,6 +164,7 @@ model Conversation {
   user     User     @relation(fields: [userId], references: [id])
   agent    Agent?   @relation(fields: [agentId], references: [id])
   messages Message[]
+  attachments MessageAttachment[]
 
   @@index([userId], map: "idx_lq_conversation_user_id")
   @@index([agentId], map: "idx_lq_conversation_agent_id")
@@ -186,7 +187,8 @@ model Message {
   updatedAt        DateTime  @updatedAt @map("updated_at")
   deletedAt        DateTime? @map("deleted_at")
 
-  conversation Conversation @relation(fields: [convId], references: [id], onDelete: Cascade)
+  conversation Conversation      @relation(fields: [convId], references: [id], onDelete: Cascade)
+  attachments  MessageAttachment[]
 
   @@index([convId], map: "idx_lq_message_conversation_id")
   @@index([role], map: "idx_lq_message_role")
@@ -194,6 +196,36 @@ model Message {
   @@index([updatedAt], map: "idx_lq_message_updated_at")
   @@index([deletedAt], map: "idx_lq_message_deleted_at")
   @@map("lq_message")
+}
+
+model MessageAttachment {
+  id              Int       @id @default(autoincrement())
+  messageId       Int       @map("message_id")
+  convId          Int       @map("conversation_id")
+  sourceType      String    @map("source_type") @db.VarChar(32)
+  knowledgeFileId Int?      @map("knowledge_file_id")
+  fileName        String    @map("file_name") @db.VarChar(255)
+  mimeType        String?   @map("mime_type") @db.VarChar(120)
+  size            Int       @default(0)
+  ossKey          String    @map("oss_key") @db.VarChar(500)
+  url             String?   @db.VarChar(1000)
+  parsedText      String?   @map("parsed_text") @db.LongText
+  parseStatus     String    @default("PENDING") @map("parse_status") @db.VarChar(32)
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  message       Message        @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  conversation  Conversation   @relation(fields: [convId], references: [id], onDelete: Cascade)
+  knowledgeFile KnowledgeFile? @relation(fields: [knowledgeFileId], references: [id], onDelete: SetNull)
+
+  @@index([messageId], map: "idx_lq_message_attachment_message_id")
+  @@index([convId], map: "idx_lq_message_attachment_conversation_id")
+  @@index([knowledgeFileId], map: "idx_lq_message_attachment_knowledge_file_id")
+  @@index([sourceType], map: "idx_lq_message_attachment_source_type")
+  @@index([parseStatus], map: "idx_lq_message_attachment_parse_status")
+  @@index([createdAt], map: "idx_lq_message_attachment_created_at")
+  @@index([updatedAt], map: "idx_lq_message_attachment_updated_at")
+  @@map("lq_message_attachment")
 }
 
 model KnowledgeFolder {
@@ -236,6 +268,9 @@ model KnowledgeFile {
   url        String?   @db.VarChar(1000)
   status     String    @default("UPLOADED") @db.VarChar(32)
   parseStatus String   @default("PENDING") @map("parse_status") @db.VarChar(32)
+  parsedText String?   @map("parsed_text") @db.LongText
+  parsedAt   DateTime? @map("parsed_at")
+  parseError String?   @map("parse_error") @db.VarChar(1000)
   createdAt  DateTime  @default(now()) @map("created_at")
   updatedAt  DateTime  @updatedAt @map("updated_at")
   deletedAt  DateTime? @map("deleted_at")
@@ -244,6 +279,7 @@ model KnowledgeFile {
   owner        User               @relation(fields: [ownerId], references: [id])
   organization Organization?      @relation(fields: [orgId], references: [id])
   jobs         KnowledgeFileJob[]
+  attachments  MessageAttachment[]
 
   @@index([folderId], map: "idx_lq_knowledge_file_folder_id")
   @@index([ownerId], map: "idx_lq_knowledge_file_owner_id")

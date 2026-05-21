@@ -42,9 +42,13 @@ export class SessionController {
   async chat(
     @Req() req: any,
     @Param('id', ParseIntPipe) id: number,
-    @Body() body: { prompt: string },
+    @Body()
+    body: {
+      prompt?: string;
+      attachments?: Array<{ fileId?: number; knowledgeFileId?: number }>;
+    },
     @Res() res: Response
   ) {
-    await this.sessionService.streamSessionChat(req.user.id, id, body?.prompt, res);
+    await this.sessionService.streamSessionChat(req.user.id, id, body?.prompt, body?.attachments, res);
   }
 }

@@ -1,16 +1,20 @@
-﻿import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import type { Response } from 'express';
 import { PrismaService } from '../prisma.service';
 import { LlmService, type AgentLlmConfig, type LlmMessage } from '../llm/llm.service';
+import { KnowledgeService, type ChatAttachmentInput } from '../knowledge/knowledge.service';
 
 @Injectable()
 export class SessionService {
   private static readonly DEFAULT_TOPIC = '\u65b0\u5bf9\u8bdd';
   private static readonly DEFAULT_AGENT_ID = 59;
+  private static readonly ATTACHMENT_MESSAGE_PLACEHOLDER = '[附件消息]';
+  private static readonly ATTACHMENT_TEXT_LIMIT = 12000;
 
   constructor(
     private prisma: PrismaService,
     private llmService: LlmService,
+    private knowledgeService: KnowledgeService,
   ) {}
 
   async listSessions(userId: number) {
@@ -44,12 +48,30 @@ export class SessionService {
   async getHistory(userId: number, sessionId: number) {
     const session = await this.prisma.conversation.findUnique({
       where: { id: sessionId },
-      include: { messages: { orderBy: { createdAt: 'asc' } } },
+      include: {
+        messages: {
+          orderBy: { createdAt: 'asc' },
+          include: {
+            attachments: true,
+          },
+        },
+      },
     });
     if (!session || session.userId !== userId) {
       throw new ForbiddenException('会话不存在或无权访问');
     }
-    return session.messages;
+
+    return session.messages.map((message) => ({
+      ...message,
+      attachments: message.attachments.map((attachment) => ({
+        type: 'link',
+        fileId: attachment.knowledgeFileId,
+        name: attachment.fileName,
+        url: attachment.url,
+        mimeType: attachment.mimeType,
+        size: attachment.size,
+      })),
+    }));
   }
 
   async deleteSession(userId: number, sessionId: number) {
@@ -80,10 +102,16 @@ export class SessionService {
     });
   }
 
-  async streamSessionChat(userId: number, sessionId: number, prompt: string, res: Response) {
+  async streamSessionChat(
+    userId: number,
+    sessionId: number,
+    prompt: string | undefined,
+    attachments: ChatAttachmentInput[] = [],
+    res: Response,
+  ) {
     const text = (prompt || '').trim();
-    if (!text) {
-      throw new BadRequestException('prompt 不能为空');
+    if (!text && (!Array.isArray(attachments) || attachments.length === 0)) {
+      throw new BadRequestException('prompt 和 attachments 不能同时为空');
     }
 
     const session = await this.prisma.conversation.findUnique({ where: { id: sessionId } });
@@ -100,14 +128,23 @@ export class SessionService {
       where: { convId: sessionId },
       orderBy: { createdAt: 'desc' },
       take: 10,
+      include: {
+        attachments: {
+          include: {
+            knowledgeFile: {
+              select: {
+                id: true,
+                name: true,
+                parsedText: true,
+                parseStatus: true,
+              },
+            },
+          },
+        },
+      },
     });
 
-    const messages: LlmMessage[] = history
-      .reverse()
-      .map((m) => ({
-        role: m.role as 'user' | 'assistant',
-        content: m.content,
-      }));
+    const messages: LlmMessage[] = history.reverse().map((message) => this.mapStoredMessageToLlmMessage(message));
 
     let model = process.env.AI_MODEL || 'deepseek-v4-flash';
     let agentForLlm: AgentLlmConfig | null = null;
@@ -129,10 +166,33 @@ export class SessionService {
       });
     }
 
-    await this.prisma.message.create({
-      data: { convId: sessionId, role: 'user', content: text },
+    const attachedFiles = await this.knowledgeService.resolveAttachmentsForChat(user, attachments);
+    const storedUserContent = text || SessionService.ATTACHMENT_MESSAGE_PLACEHOLDER;
+    const userMessage = await this.prisma.message.create({
+      data: { convId: sessionId, role: 'user', content: storedUserContent },
     });
-    messages.push({ role: 'user', content: text });
+
+    if (attachedFiles.length > 0) {
+      await this.prisma.messageAttachment.createMany({
+        data: attachedFiles.map((file) => ({
+          messageId: userMessage.id,
+          convId: sessionId,
+          knowledgeFileId: file.id,
+          sourceType: 'KNOWLEDGE_FILE',
+          fileName: file.name,
+          mimeType: file.mimeType,
+          size: file.size,
+          ossKey: file.ossKey,
+          url: file.url,
+          parseStatus: file.parseStatus,
+        })),
+      });
+    }
+
+    messages.push({
+      role: 'user',
+      content: this.buildUserMessageContent(text, attachedFiles),
+    });
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
@@ -145,7 +205,7 @@ export class SessionService {
         data: { convId: sessionId, role: 'assistant', content: fullResponse },
       });
 
-      const consumed = text.length + fullResponse.length;
+      const consumed = storedUserContent.length + fullResponse.length;
       await this.prisma.user.update({
         where: { id: userId },
         data: { consumedToken: { increment: consumed } },
@@ -159,7 +219,7 @@ export class SessionService {
           currentSession.topic === SessionService.DEFAULT_TOPIC ||
           this.isClearlyBrokenTopic(currentSession.topic))
       ) {
-        this.generateTopic(sessionId, text, fullResponse, model).catch((e) =>
+        this.generateTopic(sessionId, text || storedUserContent, fullResponse, model).catch((e) =>
           console.error('Topic gen error', e),
         );
       }
@@ -218,4 +278,52 @@ export class SessionService {
     return false;
   }
 
+  private mapStoredMessageToLlmMessage(message: any): LlmMessage {
+    return {
+      role: message.role as 'user' | 'assistant',
+      content: this.buildStoredMessageContent(message),
+    };
+  }
+
+  private buildStoredMessageContent(message: any) {
+    const text =
+      message.content === SessionService.ATTACHMENT_MESSAGE_PLACEHOLDER ? '' : String(message.content || '');
+    const attachmentFiles =
+      Array.isArray(message.attachments) && message.attachments.length > 0
+        ? message.attachments
+            .map((attachment: any) => attachment.knowledgeFile)
+            .filter((file: any) => file?.parsedText?.trim())
+        : [];
+
+    if (message.role === 'user') {
+      return this.buildUserMessageContent(text, attachmentFiles);
+    }
+
+    return text;
+  }
+
+  private buildUserMessageContent(
+    text: string,
+    attachedFiles: Array<{ name?: string | null; parsedText?: string | null }>,
+  ) {
+    const question = String(text || '').trim();
+    const validFiles = attachedFiles.filter((file) => file?.parsedText?.trim());
+
+    if (validFiles.length === 0) {
+      return question || SessionService.ATTACHMENT_MESSAGE_PLACEHOLDER;
+    }
+
+    const attachmentContext = validFiles
+      .map((file, index) => {
+        const parsedText = String(file.parsedText || '').trim().slice(0, SessionService.ATTACHMENT_TEXT_LIMIT);
+        return `附件${index + 1}：${file.name || `文件${index + 1}`}\n${parsedText}`;
+      })
+      .join('\n\n');
+
+    const promptHeader = question
+      ? `用户问题：${question}`
+      : '请结合下面附件内容进行阅读、分析和回答。';
+
+    return `${promptHeader}\n\n以下是附件解析内容：\n${attachmentContext}`;
+  }
 }

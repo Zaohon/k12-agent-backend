@@ -88,6 +88,11 @@ export class OssService {
     return this.client.head(key);
   }
 
+  async getBuffer(key: string): Promise<Buffer> {
+    const result = await this.client.get(key);
+    return result.content as Buffer;
+  }
+
   async getSignedUrl(key: string, expiresInSeconds = 300) {
     return this.client.signatureUrl(key, {
       expires: expiresInSeconds,

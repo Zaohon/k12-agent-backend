@@ -1,6 +1,15 @@
 import { Prisma } from '@prisma/client';
 
-export const DEFAULT_ROOT_KNOWLEDGE_FOLDERS = ['生成库', '教案', '课件', '题库', '工作事务'] as const;
+export const AUTO_UPLOAD_FOLDER_NAME = '自动上传' as const;
+
+export const DEFAULT_ROOT_KNOWLEDGE_FOLDERS = [
+  '生成库',
+  '教案',
+  '课件',
+  '题库',
+  '工作事务',
+  AUTO_UPLOAD_FOLDER_NAME,
+] as const;
 
 type FolderWriter = Pick<Prisma.TransactionClient, 'knowledgeFolder'>;
 

@@ -1,6 +1,6 @@
 ﻿# K12 Agent Backend API 文档（含输入输出示例）
 
-更新时间：2026-05-21（新增组织成员硬删除接口）
+更新时间：2026-05-21（补充文件解析复用链路、会话附件能力与组织成员硬删除接口）
 适用项目：`k12-agent-backend`
 
 ## 通用说明
@@ -730,13 +730,16 @@ curl -X GET "http://localhost:3000/session/list" -H "Authorization: Bearer <toke
 
 ### POST `/session/create`
 请求示例：
-```bash
-curl -X POST "http://localhost:3000/session/create" -H "Authorization: Bearer <token>"
+```json
+{ "agentId": 59 }
 ```
 成功响应示例：
 ```json
-{ "success": true, "data": { "id": 102, "topic": "新对话} }
+{ "success": true, "data": { "id": 102, "topic": "新对话" } }
 ```
+
+说明：
+- `agentId` 可选；不传时后端会使用默认智能体。
 
 ### GET `/session/history/:id`
 请求示例：
@@ -748,22 +751,110 @@ curl -X GET "http://localhost:3000/session/history/102" -H "Authorization: Beare
 {
   "success": true,
   "data": [
-    { "id": 1, "role": "user", "content": "你好" },
-    { "id": 2, "role": "assistant", "content": "你好，请问需要什么帮助？" }
+    {
+      "id": 1,
+      "convId": 102,
+      "role": "user",
+      "content": "请根据附件内容先写一句总结，再列出两条要点。",
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "createdAt": "2026-05-21T07:24:10.417Z",
+      "updatedAt": "2026-05-21T07:24:10.417Z",
+      "deletedAt": null,
+      "attachments": [
+        {
+          "type": "link",
+          "fileId": 48,
+          "name": "tmp-chat-check.txt",
+          "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/77/2026/05/uuid-tmp-chat-check.txt",
+          "mimeType": "text/plain",
+          "size": 124
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "convId": 102,
+      "role": "assistant",
+      "content": "总结：该附件是一个聊天测试文件，强调了后端对文本复用解析以及消息中附带附件引用的要求。",
+      "promptTokens": 0,
+      "completionTokens": 0,
+      "createdAt": "2026-05-21T07:24:12.548Z",
+      "updatedAt": "2026-05-21T07:24:12.548Z",
+      "deletedAt": null,
+      "attachments": []
+    }
   ]
 }
 ```
 
+说明：
+- 当前接口直接返回消息数组，不额外包一层 `messages` 字段。
+- 每条消息都可能带 `attachments` 数组；用户消息里的附件当前为知识库文件引用。
+
 ### POST `/session/chat/:id`
 请求示例：
 ```json
-{ "prompt": "请帮我出一份初中物理教案}
+{
+  "prompt": "请结合附件帮我出一份初中物理教案",
+  "attachments": [
+    { "fileId": 101 }
+  ]
+}
 ```
 成功响应示例：
 ```text
 data: {"choices":[{"delta":{"content":"当然可以"}}]}
 
 data: [DONE]
+```
+
+说明：
+- `prompt` 和 `attachments` 不能同时为空。
+- `attachments` 当前统一使用知识库文件引用，传 `fileId` 即可。
+- 后端会优先复用 `KnowledgeFile.parsedText`；如果文件尚未解析，会先触发一次解析，再把解析文本注入对话上下文。
+- 成功响应为 `text/event-stream`，前端应按 SSE 方式消费增量内容。
+
+前端传附件说明：
+- `attachments` 不是直接传本地 `File` 对象，也不是传 OSS URL；这里要传后端知识库文件记录的 `id`。
+- 当前约定每个用户都会有一个默认的“自动上传”文件夹；聊天时用户新选的本地附件，前端不需要自己定位该文件夹 id，可以直接省略 `folderId`，由后端自动落到这个目录。
+- 当前推荐链路是：
+  1. 调用 `POST /knowledge/files/upload-policy`，可不传 `folderId`
+  2. 前端直传文件到返回的 `uploadUrl`
+  3. 上传成功后调用 `POST /knowledge/files` 创建 `KnowledgeFile`，可不传 `folderId`
+  4. 取返回结果里的 `data.id`，作为 `attachments[].fileId`
+  5. 最后再调用 `POST /session/chat/:id`
+- 如果前端让用户从“已有知识库文件”里选附件，直接把选中文件的 `id` 组装进 `attachments` 即可，不需要重复上传。
+
+补充说明：
+- `POST /knowledge/files/upload-policy` 和 `POST /knowledge/files` 中，如果 `folderId` 省略，后端会自动使用当前用户的“自动上传”文件夹；若该目录不存在，后端会自动创建。
+- “自动上传”文件夹只是上传落点约定，不影响后端复用逻辑；会话里真正传给 `/session/chat/:id` 的仍然只有 `fileId`。
+- 同一个文件一旦落成 `KnowledgeFile` 并解析成功，后续多轮对话会直接复用 `parsedText`。
+
+前端请求体示例：
+```json
+{
+  "prompt": "请根据附件整理出一份提纲",
+  "attachments": [
+    { "fileId": 48 },
+    { "fileId": 52 }
+  ]
+}
+```
+
+前端调用示例：
+```js
+const response = await fetch(`${API_BASE}/session/chat/${sessionId}`, {
+  method: 'POST',
+  headers: {
+    Authorization: `Bearer ${token}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify({
+    prompt: '请根据附件整理出一份提纲',
+    attachments: selectedFiles.map(file => ({ fileId: file.id })),
+  }),
+});
 ```
 
 ### POST `/session/update-topic/:id`
@@ -1602,6 +1693,9 @@ curl -X GET "http://localhost:3000/knowledge/files?folderId=20" -H "Authorizatio
       "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-高一物理教案.pdf",
       "status": "UPLOADED",
       "parseStatus": "PENDING",
+      "parsedText": null,
+      "parsedAt": null,
+      "parseError": null,
       "createdAt": "2026-05-13T05:20:00.000Z",
       "updatedAt": "2026-05-13T05:20:00.000Z",
       "deletedAt": null
@@ -1609,6 +1703,10 @@ curl -X GET "http://localhost:3000/knowledge/files?folderId=20" -H "Authorizatio
   ]
 }
 ```
+
+说明：
+- `parseStatus` 可能为 `PENDING`、`PROCESSING`、`SUCCESS`、`FAILED`。
+- `parsedText` 为后端解析出的纯文本；当前仅文本类文件保证可解析。
 
 ### GET `/knowledge/files/:id`
 请求示例：
@@ -1631,7 +1729,10 @@ curl -X GET "http://localhost:3000/knowledge/files/101" -H "Authorization: Beare
     "ossKey": "knowledge/5/2026/05/uuid-高一物理教案.pdf",
     "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-高一物理教案.pdf",
     "status": "UPLOADED",
-    "parseStatus": "PENDING",
+    "parseStatus": "SUCCESS",
+    "parsedText": "第一章 运动的描述\\n一、机械运动\\n二、参照物",
+    "parsedAt": "2026-05-13T05:20:05.000Z",
+    "parseError": null,
     "createdAt": "2026-05-13T05:20:00.000Z",
     "updatedAt": "2026-05-13T05:20:00.000Z",
     "deletedAt": null,
@@ -1669,6 +1770,9 @@ curl -X GET "http://localhost:3000/knowledge/files/101" -H "Authorization: Beare
     "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-高一物理教案.pdf",
     "status": "UPLOADED",
     "parseStatus": "PENDING",
+    "parsedText": null,
+    "parsedAt": null,
+    "parseError": null,
     "createdAt": "2026-05-13T05:20:00.000Z",
     "updatedAt": "2026-05-13T05:40:00.000Z",
     "deletedAt": null
@@ -1684,8 +1788,8 @@ curl -X GET "http://localhost:3000/knowledge/files/101" -H "Authorization: Beare
 请求示例：
 ```json
 {
-  "fileName": "lesson-plan.docx",
-  "contentType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "fileName": "lesson-plan.txt",
+  "contentType": "text/plain",
   "folderId": 20
 }
 ```
@@ -1694,24 +1798,28 @@ curl -X GET "http://localhost:3000/knowledge/files/101" -H "Authorization: Beare
 {
   "success": true,
   "data": {
-    "key": "knowledge/5/2026/05/uuid-lesson-plan.docx",
-    "uploadUrl": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-lesson-plan.docx?Signature=...",
-    "publicUrl": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-lesson-plan.docx",
+    "key": "knowledge/5/2026/05/uuid-lesson-plan.txt",
+    "uploadUrl": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-lesson-plan.txt?Signature=...",
+    "publicUrl": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-lesson-plan.txt",
     "expiresInSeconds": 600
   }
 }
 ```
+
+说明：
+- 前端直传 OSS 时，建议 `PUT` 请求带上与 `contentType` 一致的 `Content-Type` 请求头。
+- `folderId` 可选；省略时后端会自动落到当前用户的“自动上传”文件夹。
 
 ### POST `/knowledge/files`
 请求示例：
 ```json
 {
   "folderId": 20,
-  "name": "lesson-plan.docx",
-  "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  "size": 123456,
-  "ossKey": "knowledge/5/2026/05/uuid-lesson-plan.docx",
-  "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-lesson-plan.docx"
+  "name": "lesson-plan.txt",
+  "mimeType": "text/plain",
+  "size": 123,
+  "ossKey": "knowledge/5/2026/05/uuid-lesson-plan.txt",
+  "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-lesson-plan.txt"
 }
 ```
 成功响应示例：
@@ -1723,20 +1831,30 @@ curl -X GET "http://localhost:3000/knowledge/files/101" -H "Authorization: Beare
     "folderId": 20,
     "ownerId": 5,
     "orgId": 1,
-    "name": "lesson-plan.docx",
-    "ext": "docx",
-    "mimeType": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-    "size": 123456,
-    "ossKey": "knowledge/5/2026/05/uuid-lesson-plan.docx",
-    "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-lesson-plan.docx",
+    "name": "lesson-plan.txt",
+    "ext": "txt",
+    "mimeType": "text/plain",
+    "size": 123,
+    "ossKey": "knowledge/5/2026/05/uuid-lesson-plan.txt",
+    "url": "https://lqwlcloud.oss-cn-shanghai.aliyuncs.com/knowledge/5/2026/05/uuid-lesson-plan.txt",
     "status": "UPLOADED",
     "parseStatus": "PENDING",
+    "parsedText": null,
+    "parsedAt": null,
+    "parseError": null,
     "createdAt": "2026-05-13T05:30:00.000Z",
     "updatedAt": "2026-05-13T05:30:00.000Z",
     "deletedAt": null
   }
 }
 ```
+
+说明：
+- 创建文件记录后，后端会异步尝试解析文件内容。
+- `folderId` 可选；省略时后端会自动落到当前用户的“自动上传”文件夹。
+- 当前内置解析器优先支持文本类文件，如 `txt`、`md`、`csv`、`json`、`html`、`xml`、`yml`、`yaml`。
+- 解析成功后会回写 `parsedText`，并把 `parseStatus` 更新为 `SUCCESS`；失败时会写入 `parseError` 并将状态更新为 `FAILED`。
+- 同一个文件解析成功后，后续会话会直接复用 `KnowledgeFile.parsedText`，不会重复解析原文件。
 
 ### 文件上传调用顺序参考
 知识库文件上传采用“前端直传 OSS + 后端落库”的两段式流程：
@@ -1749,6 +1867,8 @@ curl -X GET "http://localhost:3000/knowledge/files/101" -H "Authorization: Beare
 说明：
 - 文件内容不经过业务后端，浏览器直接上传到 OSS
 - 后端只负责签发上传地址、校验权限、保存文件元数据
+- `folderId` 可以省略；省略时后端会自动使用当前用户的“自动上传”文件夹
+- 当前聊天附件链路要求先成为 `KnowledgeFile`，会话接口再通过 `attachments[].fileId` 引用该文件
 - 如果第 2 步上传成功但第 3 步未执行，会产生“OSS 已有文件但业务库无记录”的孤儿对象，建议前端在上传成功后立即调用落库接口
 
 ### POST `/knowledge/files/batch-move`

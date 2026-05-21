@@ -17,7 +17,11 @@
     "test:watch": "jest --watch",
     "test:cov": "jest --coverage",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
-    "test:e2e": "jest --config ./test/jest-e2e.json"
+    "test:e2e": "jest --config ./test/jest-e2e.json",
+    "db:repair:manual-schema": "prisma db execute --schema prisma/schema.prisma --file prisma/manual/20260521_repair_schema_for_knowledge_pipeline.sql",
+    "db:repair:prisma-migrations": "node scripts/repair-prisma-migrations.js",
+    "db:backfill:knowledge": "node scripts/backfill-knowledge-data.js",
+    "db:reprocess:pending-files": "node scripts/reprocess-pending-knowledge-files.js"
   },
   "dependencies": {
     "@alicloud/dysmsapi20170525": "^4.5.1",

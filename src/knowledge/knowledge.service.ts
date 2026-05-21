@@ -3,9 +3,31 @@ import { PrismaService } from '../prisma.service';
 import { OssService } from '../oss/oss.service';
 import { extname } from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { AUTO_UPLOAD_FOLDER_NAME } from './knowledge-defaults';
+
+export interface ChatAttachmentInput {
+  fileId?: number;
+  knowledgeFileId?: number;
+}
 
 @Injectable()
 export class KnowledgeService {
+  private static readonly INLINE_PARSE_EXTS = new Set([
+    'txt',
+    'md',
+    'markdown',
+    'csv',
+    'tsv',
+    'json',
+    'js',
+    'ts',
+    'html',
+    'htm',
+    'xml',
+    'yml',
+    'yaml',
+  ]);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly ossService: OssService,
@@ -111,6 +133,7 @@ export class KnowledgeService {
   async createFolder(user: any, body: { name: string; parentId?: number | null }) {
     const name = this.normalizeFolderName(body?.name);
     const parentId = body?.parentId ?? null;
+    this.assertCanUseFolderName(name);
 
     if (parentId) {
       await this.assertFolderOwner(user.id, parentId);
@@ -129,12 +152,19 @@ export class KnowledgeService {
   async updateFolder(user: any, id: number, body: { name?: string; parentId?: number | null }) {
     const folder = await this.assertFolderOwner(user.id, id);
     const data: Record<string, unknown> = {};
+    const hasParentUpdate = Object.prototype.hasOwnProperty.call(body || {}, 'parentId');
 
-    if (typeof body?.name !== 'undefined') {
-      data.name = this.normalizeFolderName(body?.name);
+    if (typeof body?.name !== 'undefined' || hasParentUpdate) {
+      this.assertAutoUploadFolderIsImmutable(folder.name);
     }
 
-    if (Object.prototype.hasOwnProperty.call(body || {}, 'parentId')) {
+    if (typeof body?.name !== 'undefined') {
+      const nextName = this.normalizeFolderName(body?.name);
+      this.assertCanUseFolderName(nextName);
+      data.name = nextName;
+    }
+
+    if (hasParentUpdate) {
       const parentId = body?.parentId ?? null;
       await this.assertFolderMoveTarget(user.id, folder.id, parentId);
       data.parentId = parentId;
@@ -151,7 +181,8 @@ export class KnowledgeService {
   }
 
   async deleteFolder(user: any, id: number) {
-    await this.assertFolderOwner(user.id, id);
+    const folder = await this.assertFolderOwner(user.id, id);
+    this.assertAutoUploadFolderIsImmutable(folder.name);
 
     const [childrenCount, fileCount] = await Promise.all([
       this.prisma.knowledgeFolder.count({
@@ -268,11 +299,9 @@ export class KnowledgeService {
     body: { fileName: string; contentType?: string; folderId?: number | null },
   ) {
     const fileName = this.normalizeFileName(body?.fileName);
-    const folderId = body?.folderId ?? null;
-
-    if (folderId) {
-      await this.assertFolderOwner(user.id, folderId);
-    }
+    await this.resolveIncomingFolderId(user, body?.folderId ?? undefined, {
+      useAutoUploadWhenMissing: true,
+    });
 
     const objectKey = this.buildObjectKey(user.id, fileName);
     return this.ossService.getSignedUploadUrl(objectKey, body?.contentType, 600);
@@ -290,11 +319,9 @@ export class KnowledgeService {
     },
   ) {
     const name = this.normalizeFileName(body?.name);
-    const folderId = body?.folderId ?? null;
-
-    if (folderId) {
-      await this.assertFolderOwner(user.id, folderId);
-    }
+    const folderId = await this.resolveIncomingFolderId(user, body?.folderId ?? undefined, {
+      useAutoUploadWhenMissing: true,
+    });
 
     const ossKey = String(body?.ossKey || '').trim();
     if (!ossKey) {
@@ -334,7 +361,145 @@ export class KnowledgeService {
       },
     });
 
+    void this.parseKnowledgeFile(file.id, { expectedOwnerId: user.id }).catch(() => undefined);
+
     return file;
+  }
+
+  async resolveAttachmentsForChat(user: any, attachments: ChatAttachmentInput[] = []) {
+    if (!Array.isArray(attachments) || attachments.length === 0) {
+      return [];
+    }
+
+    const fileIds = attachments.map((attachment, index) => {
+      const raw = attachment?.fileId ?? attachment?.knowledgeFileId;
+      const fileId = Number(raw);
+      if (!Number.isInteger(fileId) || fileId <= 0) {
+        throw new BadRequestException(`attachments[${index}].fileId is required`);
+      }
+      return fileId;
+    });
+
+    const files = await this.assertFilesOwner(user.id, fileIds);
+    const fileMap = new Map(files.map((file) => [file.id, file]));
+    const resolvedFiles: typeof files = [];
+
+    for (const fileId of fileIds) {
+      let file = fileMap.get(fileId)!;
+      if (file.parseStatus !== 'SUCCESS' || !file.parsedText?.trim()) {
+        file = await this.parseKnowledgeFile(file.id, { expectedOwnerId: user.id });
+      }
+      resolvedFiles.push(file);
+    }
+
+    return resolvedFiles;
+  }
+
+  async parseKnowledgeFile(fileId: number, options?: { expectedOwnerId?: number; force?: boolean }) {
+    const file = await this.prisma.knowledgeFile.findFirst({
+      where: {
+        id: fileId,
+        deletedAt: null,
+        ...(options?.expectedOwnerId
+          ? {
+              ownerId: options.expectedOwnerId,
+            }
+          : {}),
+      },
+    });
+
+    if (!file) {
+      throw new NotFoundException('File not found');
+    }
+
+    if (!options?.force && file.parseStatus === 'SUCCESS' && file.parsedText?.trim()) {
+      return file;
+    }
+
+    const startedAt = new Date();
+    await this.prisma.knowledgeFile.update({
+      where: { id: file.id },
+      data: {
+        parseStatus: 'PROCESSING',
+        parseError: null,
+      },
+    });
+
+    await this.prisma.knowledgeFileJob.updateMany({
+      where: {
+        fileId: file.id,
+        jobType: 'PARSE',
+        status: 'PENDING',
+      },
+      data: {
+        status: 'PROCESSING',
+        startedAt,
+        errorMessage: null,
+      },
+    });
+
+    try {
+      const buffer = await this.ossService.getBuffer(file.ossKey);
+      const parsedText = this.extractTextFromFile(buffer, file.name, file.ext, file.mimeType);
+
+      if (!parsedText.trim()) {
+        throw new Error('Parsed text is empty');
+      }
+
+      const finishedAt = new Date();
+      const updatedFile = await this.prisma.knowledgeFile.update({
+        where: { id: file.id },
+        data: {
+          parseStatus: 'SUCCESS',
+          parsedText,
+          parsedAt: finishedAt,
+          parseError: null,
+        },
+      });
+
+      await this.prisma.knowledgeFileJob.updateMany({
+        where: {
+          fileId: file.id,
+          jobType: 'PARSE',
+          status: 'PROCESSING',
+        },
+        data: {
+          status: 'SUCCESS',
+          finishedAt,
+          errorMessage: null,
+        },
+      });
+
+      return updatedFile;
+    } catch (error) {
+      const finishedAt = new Date();
+      const errorMessage = error instanceof Error ? error.message : 'Unknown parse error';
+
+      await this.prisma.knowledgeFile.update({
+        where: { id: file.id },
+        data: {
+          parseStatus: 'FAILED',
+          parseError: errorMessage.slice(0, 1000),
+        },
+      });
+
+      await this.prisma.knowledgeFileJob.updateMany({
+        where: {
+          fileId: file.id,
+          jobType: 'PARSE',
+          status: {
+            in: ['PENDING', 'PROCESSING'],
+          },
+        },
+        data: {
+          status: 'FAILED',
+          finishedAt,
+          errorMessage: errorMessage.slice(0, 1000),
+        },
+      });
+
+      throw new BadRequestException(`File parse failed: ${errorMessage}`);
+    }
   }
 
   async deleteFile(user: any, id: number) {
@@ -438,6 +603,63 @@ export class KnowledgeService {
     return folder;
   }
 
+  private async resolveIncomingFolderId(
+    user: any,
+    folderIdInput: number | null | undefined,
+    options?: { useAutoUploadWhenMissing?: boolean },
+  ) {
+    const hasFolderId =
+      typeof folderIdInput !== 'undefined' && folderIdInput !== null && String(folderIdInput).trim() !== '';
+
+    if (hasFolderId) {
+      const folderId = Number(folderIdInput);
+      if (!Number.isInteger(folderId) || folderId <= 0) {
+        throw new BadRequestException('folderId is invalid');
+      }
+
+      await this.assertFolderOwner(user.id, folderId);
+      return folderId;
+    }
+
+    if (options?.useAutoUploadWhenMissing) {
+      return this.ensureAutoUploadFolderId(user);
+    }
+
+    return null;
+  }
+
+  private async ensureAutoUploadFolderId(user: any) {
+    const existing = await this.prisma.knowledgeFolder.findFirst({
+      where: {
+        ownerId: user.id,
+        parentId: null,
+        name: AUTO_UPLOAD_FOLDER_NAME,
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existing) {
+      return existing.id;
+    }
+
+    const created = await this.prisma.knowledgeFolder.create({
+      data: {
+        name: AUTO_UPLOAD_FOLDER_NAME,
+        parentId: null,
+        ownerId: user.id,
+        orgId: user.orgId ?? null,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return created.id;
+  }
+
   private async assertFolderMoveTarget(userId: number, folderId: number, parentId: number | null) {
     if (parentId === null) {
       return null;
@@ -524,6 +746,18 @@ export class KnowledgeService {
     return name;
   }
 
+  private assertCanUseFolderName(name: string) {
+    if (name === AUTO_UPLOAD_FOLDER_NAME) {
+      throw new BadRequestException(`Folder name "${AUTO_UPLOAD_FOLDER_NAME}" is reserved`);
+    }
+  }
+
+  private assertAutoUploadFolderIsImmutable(name: string) {
+    if (name === AUTO_UPLOAD_FOLDER_NAME) {
+      throw new BadRequestException(`Folder "${AUTO_UPLOAD_FOLDER_NAME}" cannot be renamed or deleted`);
+    }
+  }
+
   private normalizeFileName(raw: unknown) {
     const name = String(raw || '').trim();
     if (!name) {
@@ -562,6 +796,29 @@ export class KnowledgeService {
   private extractExt(name: string) {
     const ext = extname(name).replace(/^\./, '').trim().toLowerCase();
     return ext || null;
+  }
+
+  private extractTextFromFile(buffer: Buffer, fileName: string, ext?: string | null, mimeType?: string | null) {
+    const normalizedExt = String(ext || this.extractExt(fileName) || '').toLowerCase();
+    const normalizedMime = String(mimeType || '').toLowerCase();
+    const isInlineMimeType =
+      normalizedMime.startsWith('text/') ||
+      normalizedMime === 'application/json' ||
+      normalizedMime.endsWith('+json') ||
+      normalizedMime === 'application/xml' ||
+      normalizedMime === 'text/xml' ||
+      normalizedMime === 'application/yaml' ||
+      normalizedMime === 'application/x-yaml' ||
+      normalizedMime === 'text/yaml' ||
+      normalizedMime === 'text/x-yaml' ||
+      normalizedMime === 'text/csv' ||
+      normalizedMime === 'application/csv';
+
+    if (KnowledgeService.INLINE_PARSE_EXTS.has(normalizedExt) || isInlineMimeType) {
+      return buffer.toString('utf8').replace(/\u0000/g, '').trim();
+    }
+
+    throw new Error(`Unsupported file type for inline parsing: ${normalizedExt || normalizedMime || fileName}`);
   }
 
   private buildObjectKey(userId: number, fileName: string) {

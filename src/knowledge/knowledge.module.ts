@@ -8,5 +8,6 @@ import { OssModule } from '../oss/oss.module';
   imports: [OssModule],
   controllers: [KnowledgeController],
   providers: [KnowledgeService, PrismaService],
+  exports: [KnowledgeService],
 })
 export class KnowledgeModule {}
