@@ -1368,6 +1368,7 @@ curl -X GET "http://localhost:3000/category/28/agents" -H "Authorization: Bearer
       "enableFileUpload": false,
       "enableKnowledgeBase": false,
       "creatorId": 1,
+      "creatorName": "system_admin",
       "orgId": null,
       "visibility": "PUBLIC",
       "approvalStatus": "APPROVED",

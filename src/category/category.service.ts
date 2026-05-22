@@ -84,14 +84,25 @@ export class CategoryService implements OnModuleInit {
         },
       },
       include: {
-        agent: true,
+        agent: {
+          include: {
+            creator: {
+              select: {
+                username: true,
+              },
+            },
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',
       },
     });
 
-    return categoryAgents.map((item) => item.agent);
+    return categoryAgents.map((item) => ({
+      ...item.agent,
+      creatorName: item.agent.creator?.username ?? null,
+    }));
   }
 
   async removeAgentFromCategory(
