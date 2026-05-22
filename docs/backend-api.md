@@ -69,7 +69,7 @@
 | 接口 | 权限 |
 | --- | --- |
 | `GET /category/list` | 登录用户（需绑定组织；`SUPER_ADMIN` 取当前有效组织） |
-| `GET /category/:id/agents` | 登录用户；非 `SUPER_ADMIN` 仅可查看本组织分类 |
+| `GET /category/:id/agents` | 登录用户，仅可查看当前组织分类 |
 | `POST /category/create` | `SUPER_ADMIN` 或 `SCHOOL_ADMIN` |
 | `PATCH /category/:id` | `SUPER_ADMIN` 或本组织 `SCHOOL_ADMIN` |
 | `DELETE /category/:id` | `SUPER_ADMIN` 或本组织 `SCHOOL_ADMIN` |

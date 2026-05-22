@@ -19,6 +19,20 @@ export class CategoryService implements OnModuleInit {
     return CategoryService.PROTECTED_CATEGORY_NAMES.includes((name || '').trim());
   }
 
+  private async getEffectiveOrgId(currentUser: { id: number; role: string; orgId?: number }) {
+    return currentUser.role === 'SUPER_ADMIN'
+      ? (
+          currentUser.orgId ??
+          (
+            await this.prisma.organization.findUnique({
+              where: { orgName: '公共网点 (默认)' },
+              select: { id: true },
+            })
+          )?.id
+        )
+      : currentUser.orgId;
+  }
+
   async onModuleInit() {
     const count = await this.prisma.category.count();
     if (count === 0) {
@@ -37,18 +51,7 @@ export class CategoryService implements OnModuleInit {
   }
 
   async list(currentUser: { id: number; role: string; orgId?: number }) {
-    const effectiveOrgId =
-      currentUser.role === 'SUPER_ADMIN'
-        ? (
-            currentUser.orgId ??
-            (
-              await this.prisma.organization.findUnique({
-                where: { orgName: '公共网点 (默认)' },
-                select: { id: true },
-              })
-            )?.id
-          )
-        : currentUser.orgId;
+    const effectiveOrgId = await this.getEffectiveOrgId(currentUser);
 
     if (!effectiveOrgId) {
       throw new ForbiddenException('当前账号未绑定组织，无法获取分类');
@@ -64,15 +67,18 @@ export class CategoryService implements OnModuleInit {
     currentUser: { id: number; role: string; orgId?: number },
     categoryId: number,
   ) {
+    const effectiveOrgId = await this.getEffectiveOrgId(currentUser);
+    if (!effectiveOrgId) {
+      throw new ForbiddenException('当前账号未绑定组织，无法获取分类');
+    }
+
     const category = await this.prisma.category.findUnique({ where: { id: categoryId } });
     if (!category || category.deletedAt) {
       throw new ForbiddenException('分类不存在或已删除');
     }
 
-    if (currentUser.role !== 'SUPER_ADMIN') {
-      if (category.orgId !== null && category.orgId !== currentUser.orgId) {
-        throw new ForbiddenException('只能查看当前组织分类');
-      }
+    if (category.orgId !== null && category.orgId !== effectiveOrgId) {
+      throw new ForbiddenException('只能查看当前组织分类');
     }
 
     const categoryAgents = await this.prisma.agentCategory.findMany({
