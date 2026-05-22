@@ -19,8 +19,6 @@ model Organization {
   users  User[]
   agents Agent[]
   categories Category[]
-  knowledgeFolders KnowledgeFolder[]
-  knowledgeFiles   KnowledgeFile[]
   modelConfigs     ModelConfig[]
 
   @@index([status], map: "idx_lq_organization_status")
@@ -107,7 +105,6 @@ model Agent {
 model Category {
   id        Int       @id @default(autoincrement())
   name      String    @db.VarChar(100)
-  parentId  Int?      @map("parent_id")
   orgId     Int?      @map("org_id")
   weight    Int       @default(0)
   status    String    @default("ACTIVE") @db.VarChar(32)
@@ -118,7 +115,6 @@ model Category {
   organization Organization? @relation(fields: [orgId], references: [id])
   agents AgentCategory[]
 
-  @@index([parentId], map: "idx_lq_category_parent_id")
   @@index([orgId], map: "idx_lq_category_org_id")
   @@index([status], map: "idx_lq_category_status")
   @@index([weight], map: "idx_lq_category_weight")
@@ -209,8 +205,6 @@ model MessageAttachment {
   size            Int       @default(0)
   ossKey          String    @map("oss_key") @db.VarChar(500)
   url             String?   @db.VarChar(1000)
-  parsedText      String?   @map("parsed_text") @db.LongText
-  parseStatus     String    @default("PENDING") @map("parse_status") @db.VarChar(32)
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
@@ -222,7 +216,6 @@ model MessageAttachment {
   @@index([convId], map: "idx_lq_message_attachment_conversation_id")
   @@index([knowledgeFileId], map: "idx_lq_message_attachment_knowledge_file_id")
   @@index([sourceType], map: "idx_lq_message_attachment_source_type")
-  @@index([parseStatus], map: "idx_lq_message_attachment_parse_status")
   @@index([createdAt], map: "idx_lq_message_attachment_created_at")
   @@index([updatedAt], map: "idx_lq_message_attachment_updated_at")
   @@map("lq_message_attachment")
@@ -233,7 +226,6 @@ model KnowledgeFolder {
   name      String    @db.VarChar(120)
   parentId  Int?      @map("parent_id")
   ownerId   Int       @map("owner_id")
-  orgId     Int?      @map("org_id")
   status    String    @default("ACTIVE") @db.VarChar(32)
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -242,12 +234,10 @@ model KnowledgeFolder {
   parent   KnowledgeFolder?  @relation("KnowledgeFolderTree", fields: [parentId], references: [id], onDelete: SetNull)
   children KnowledgeFolder[] @relation("KnowledgeFolderTree")
   owner    User              @relation(fields: [ownerId], references: [id])
-  organization Organization? @relation(fields: [orgId], references: [id])
   files    KnowledgeFile[]
 
   @@index([parentId], map: "idx_lq_knowledge_folder_parent_id")
   @@index([ownerId], map: "idx_lq_knowledge_folder_owner_id")
-  @@index([orgId], map: "idx_lq_knowledge_folder_org_id")
   @@index([status], map: "idx_lq_knowledge_folder_status")
   @@index([createdAt], map: "idx_lq_knowledge_folder_created_at")
   @@index([updatedAt], map: "idx_lq_knowledge_folder_updated_at")
@@ -259,7 +249,6 @@ model KnowledgeFile {
   id         Int       @id @default(autoincrement())
   folderId   Int?      @map("folder_id")
   ownerId    Int       @map("owner_id")
-  orgId      Int?      @map("org_id")
   name       String    @db.VarChar(255)
   ext        String?   @db.VarChar(32)
   mimeType   String?   @map("mime_type") @db.VarChar(120)
@@ -277,13 +266,11 @@ model KnowledgeFile {
 
   folder       KnowledgeFolder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
   owner        User               @relation(fields: [ownerId], references: [id])
-  organization Organization?      @relation(fields: [orgId], references: [id])
   jobs         KnowledgeFileJob[]
   attachments  MessageAttachment[]
 
   @@index([folderId], map: "idx_lq_knowledge_file_folder_id")
   @@index([ownerId], map: "idx_lq_knowledge_file_owner_id")
-  @@index([orgId], map: "idx_lq_knowledge_file_org_id")
   @@index([status], map: "idx_lq_knowledge_file_status")
   @@index([parseStatus], map: "idx_lq_knowledge_file_parse_status")
   @@index([createdAt], map: "idx_lq_knowledge_file_created_at")

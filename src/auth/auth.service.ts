@@ -185,7 +185,6 @@ export class AuthService {
 
         await ensureDefaultKnowledgeFolders(tx, {
           ownerId: createdUser.id,
-          orgId: createdUser.orgId,
         });
 
         return createdUser;

@@ -184,7 +184,6 @@ export class SessionService {
           size: file.size,
           ossKey: file.ossKey,
           url: file.url,
-          parseStatus: file.parseStatus,
         })),
       });
     }

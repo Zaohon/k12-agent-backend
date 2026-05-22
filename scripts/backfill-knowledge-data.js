@@ -40,7 +40,6 @@ async function ensureDefaultFoldersForUser(tx, user) {
           name,
           parentId: null,
           ownerId: user.id,
-          orgId: user.orgId ?? null,
         },
         select: {
           id: true,
@@ -65,7 +64,6 @@ async function main() {
     },
     select: {
       id: true,
-      orgId: true,
       username: true,
       phone: true,
     },

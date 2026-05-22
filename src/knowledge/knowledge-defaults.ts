@@ -15,7 +15,7 @@ type FolderWriter = Pick<Prisma.TransactionClient, 'knowledgeFolder'>;
 
 export async function ensureDefaultKnowledgeFolders(
   db: FolderWriter,
-  input: { ownerId: number; orgId?: number | null },
+  input: { ownerId: number },
 ) {
   const existing = await db.knowledgeFolder.findMany({
     where: {
@@ -43,7 +43,6 @@ export async function ensureDefaultKnowledgeFolders(
       name,
       parentId: null,
       ownerId: input.ownerId,
-      orgId: input.orgId ?? null,
     })),
   });
 

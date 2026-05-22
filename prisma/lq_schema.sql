@@ -90,7 +90,6 @@ CREATE TABLE `lq_agent` (
 CREATE TABLE `lq_category` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `name` VARCHAR(100) NOT NULL,
-    `parent_id` INTEGER NULL,
     `org_id` INTEGER NULL,
     `weight` INTEGER NOT NULL DEFAULT 0,
     `status` VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
@@ -98,7 +97,6 @@ CREATE TABLE `lq_category` (
     `updated_at` DATETIME(3) NOT NULL,
     `deleted_at` DATETIME(3) NULL,
 
-    INDEX `idx_lq_category_parent_id`(`parent_id`),
     INDEX `idx_lq_category_org_id`(`org_id`),
     INDEX `idx_lq_category_status`(`status`),
     INDEX `idx_lq_category_weight`(`weight`),
@@ -176,7 +174,6 @@ CREATE TABLE `lq_knowledge_folder` (
     `name` VARCHAR(120) NOT NULL,
     `parent_id` INTEGER NULL,
     `owner_id` INTEGER NOT NULL,
-    `org_id` INTEGER NULL,
     `status` VARCHAR(32) NOT NULL DEFAULT 'ACTIVE',
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updated_at` DATETIME(3) NOT NULL,
@@ -184,7 +181,6 @@ CREATE TABLE `lq_knowledge_folder` (
 
     INDEX `idx_lq_knowledge_folder_parent_id`(`parent_id`),
     INDEX `idx_lq_knowledge_folder_owner_id`(`owner_id`),
-    INDEX `idx_lq_knowledge_folder_org_id`(`org_id`),
     INDEX `idx_lq_knowledge_folder_status`(`status`),
     INDEX `idx_lq_knowledge_folder_created_at`(`created_at`),
     INDEX `idx_lq_knowledge_folder_updated_at`(`updated_at`),
@@ -197,7 +193,6 @@ CREATE TABLE `lq_knowledge_file` (
     `id` INTEGER NOT NULL AUTO_INCREMENT,
     `folder_id` INTEGER NULL,
     `owner_id` INTEGER NOT NULL,
-    `org_id` INTEGER NULL,
     `name` VARCHAR(255) NOT NULL,
     `ext` VARCHAR(32) NULL,
     `mime_type` VARCHAR(120) NULL,
@@ -215,7 +210,6 @@ CREATE TABLE `lq_knowledge_file` (
 
     INDEX `idx_lq_knowledge_file_folder_id`(`folder_id`),
     INDEX `idx_lq_knowledge_file_owner_id`(`owner_id`),
-    INDEX `idx_lq_knowledge_file_org_id`(`org_id`),
     INDEX `idx_lq_knowledge_file_status`(`status`),
     INDEX `idx_lq_knowledge_file_parse_status`(`parse_status`),
     INDEX `idx_lq_knowledge_file_created_at`(`created_at`),
@@ -279,16 +273,10 @@ ALTER TABLE `lq_knowledge_folder` ADD CONSTRAINT `lq_knowledge_folder_parent_id_
 ALTER TABLE `lq_knowledge_folder` ADD CONSTRAINT `lq_knowledge_folder_owner_id_fkey` FOREIGN KEY (`owner_id`) REFERENCES `lq_user`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `lq_knowledge_folder` ADD CONSTRAINT `lq_knowledge_folder_org_id_fkey` FOREIGN KEY (`org_id`) REFERENCES `lq_organization`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE `lq_knowledge_file` ADD CONSTRAINT `lq_knowledge_file_folder_id_fkey` FOREIGN KEY (`folder_id`) REFERENCES `lq_knowledge_folder`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `lq_knowledge_file` ADD CONSTRAINT `lq_knowledge_file_owner_id_fkey` FOREIGN KEY (`owner_id`) REFERENCES `lq_user`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE `lq_knowledge_file` ADD CONSTRAINT `lq_knowledge_file_org_id_fkey` FOREIGN KEY (`org_id`) REFERENCES `lq_organization`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `lq_knowledge_file_job` ADD CONSTRAINT `lq_knowledge_file_job_file_id_fkey` FOREIGN KEY (`file_id`) REFERENCES `lq_knowledge_file`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

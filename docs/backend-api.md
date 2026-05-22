@@ -332,7 +332,6 @@ curl -X GET "http://localhost:3000/agent/discover?categoryId=1" -H "Authorizatio
           "category": {
             "id": 1,
             "name": "精选页",
-            "parentId": null,
             "orgId": 1,
             "weight": 100,
             "status": "ACTIVE",
@@ -1203,6 +1202,7 @@ curl -X GET "http://localhost:3000/approval/pending" -H "Authorization: Bearer <
 说明：
 - `SCHOOL_ADMIN`：只能审批本组织、且 `visibility !== PUBLIC` 的智能体。
 - `SUPER_ADMIN`：可兜底审批所有类型智能体。
+- 若传 `categoryId`，后端会校验该分类存在、未删除，且审批人和智能体都有权挂到该分类。
 
 请求示例（通过）：
 ```json
@@ -1239,7 +1239,6 @@ curl -X GET "http://localhost:3000/category/list" -H "Authorization: Bearer <tok
     {
       "id": 26,
       "name": "精选页",
-      "parentId": null,
       "orgId": 5,
       "weight": 100,
       "status": "ACTIVE",
@@ -1265,7 +1264,6 @@ curl -X GET "http://localhost:3000/category/list" -H "Authorization: Bearer <tok
   "data": {
     "id": 28,
     "name": "分类联调_1710000000",
-    "parentId": null,
     "orgId": null,
     "weight": 12,
     "status": "ACTIVE",
@@ -1298,7 +1296,6 @@ curl -X GET "http://localhost:3000/category/list" -H "Authorization: Bearer <tok
   "data": {
     "id": 28,
     "name": "分类联调_已改名",
-    "parentId": null,
     "orgId": null,
     "weight": 15,
     "status": "ACTIVE",
@@ -1545,12 +1542,11 @@ curl -X GET "http://localhost:3000/knowledge/folders?parentId=0" -H "Authorizati
   "success": true,
   "data": [
     {
-      "id": 11,
-      "name": "教案素材",
-      "parentId": null,
-      "ownerId": 5,
-      "orgId": 1,
-      "status": "ACTIVE",
+        "id": 11,
+        "name": "教案素材",
+        "parentId": null,
+        "ownerId": 5,
+        "status": "ACTIVE",
       "createdAt": "2026-05-13T04:00:00.000Z",
       "updatedAt": "2026-05-13T04:00:00.000Z",
       "deletedAt": null,
@@ -1581,7 +1577,6 @@ curl -X GET "http://localhost:3000/knowledge/entries?parentId=20" -H "Authorizat
         "name": "单元教案",
         "parentId": 20,
         "ownerId": 5,
-        "orgId": 1,
         "status": "ACTIVE",
         "createdAt": "2026-05-13T05:05:00.000Z",
         "updatedAt": "2026-05-13T05:05:00.000Z",
@@ -1595,7 +1590,6 @@ curl -X GET "http://localhost:3000/knowledge/entries?parentId=20" -H "Authorizat
         "id": 101,
         "folderId": 20,
         "ownerId": 5,
-        "orgId": 1,
         "name": "高一物理教案.pdf",
         "ext": "pdf",
         "mimeType": "application/pdf",
@@ -1629,7 +1623,6 @@ curl -X GET "http://localhost:3000/knowledge/folders/11" -H "Authorization: Bear
     "name": "教案素材",
     "parentId": null,
     "ownerId": 5,
-    "orgId": 1,
     "status": "ACTIVE",
     "createdAt": "2026-05-13T04:00:00.000Z",
     "updatedAt": "2026-05-13T04:00:00.000Z",
@@ -1658,7 +1651,6 @@ curl -X GET "http://localhost:3000/knowledge/folders/11" -H "Authorization: Bear
     "name": "课程资料",
     "parentId": null,
     "ownerId": 5,
-    "orgId": 1,
     "status": "ACTIVE",
     "createdAt": "2026-05-13T05:00:00.000Z",
     "updatedAt": "2026-05-13T05:00:00.000Z",
@@ -1684,7 +1676,6 @@ curl -X GET "http://localhost:3000/knowledge/folders/11" -H "Authorization: Bear
     "name": "更新后的文件夹名",
     "parentId": null,
     "ownerId": 5,
-    "orgId": 1,
     "status": "ACTIVE",
     "createdAt": "2026-05-13T05:00:00.000Z",
     "updatedAt": "2026-05-13T05:10:00.000Z",
@@ -1730,7 +1721,6 @@ curl -X GET "http://localhost:3000/knowledge/files?folderId=20" -H "Authorizatio
       "id": 101,
       "folderId": 20,
       "ownerId": 5,
-      "orgId": 1,
       "name": "高一物理教案.pdf",
       "ext": "pdf",
       "mimeType": "application/pdf",
@@ -1767,7 +1757,6 @@ curl -X GET "http://localhost:3000/knowledge/files/101" -H "Authorization: Beare
     "id": 101,
     "folderId": 20,
     "ownerId": 5,
-    "orgId": 1,
     "name": "高一物理教案.pdf",
     "ext": "pdf",
     "mimeType": "application/pdf",
@@ -1807,7 +1796,6 @@ curl -X GET "http://localhost:3000/knowledge/files/101" -H "Authorization: Beare
     "id": 101,
     "folderId": 21,
     "ownerId": 5,
-    "orgId": 1,
     "name": "高一物理教案-整理版.pdf",
     "ext": "pdf",
     "mimeType": "application/pdf",
@@ -1876,7 +1864,6 @@ curl -X GET "http://localhost:3000/knowledge/files/101" -H "Authorization: Beare
     "id": 102,
     "folderId": 20,
     "ownerId": 5,
-    "orgId": 1,
     "name": "lesson-plan.txt",
     "ext": "txt",
     "mimeType": "text/plain",

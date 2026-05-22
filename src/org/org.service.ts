@@ -162,7 +162,6 @@ export class OrgService {
 
           await ensureDefaultKnowledgeFolders(tx, {
             ownerId: createdUser.id,
-            orgId: createdUser.orgId,
           });
         });
         successCount++;

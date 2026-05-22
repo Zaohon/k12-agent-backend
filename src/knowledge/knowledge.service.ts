@@ -144,7 +144,6 @@ export class KnowledgeService {
         name,
         parentId,
         ownerId: user.id,
-        orgId: user.orgId ?? null,
       },
     });
   }
@@ -341,7 +340,6 @@ export class KnowledgeService {
       data: {
         folderId,
         ownerId: user.id,
-        orgId: user.orgId ?? null,
         name,
         ext,
         mimeType: body?.mimeType?.trim() || null,
@@ -650,7 +648,6 @@ export class KnowledgeService {
         name: AUTO_UPLOAD_FOLDER_NAME,
         parentId: null,
         ownerId: user.id,
-        orgId: user.orgId ?? null,
       },
       select: {
         id: true,

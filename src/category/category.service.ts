@@ -265,7 +265,7 @@ export class CategoryService implements OnModuleInit {
 
   async create(
     currentUser: { id: number; role: string; orgId?: number },
-    data: { name: string; weight?: number; parentId?: number; orgId?: number },
+    data: { name: string; weight?: number; orgId?: number },
   ) {
     if (currentUser.role !== 'SUPER_ADMIN' && currentUser.role !== 'SCHOOL_ADMIN') {
       throw new ForbiddenException('仅超级管理员或组织管理员可创建分类');
@@ -286,7 +286,6 @@ export class CategoryService implements OnModuleInit {
       data: {
         name: categoryName,
         weight: data.weight ?? 0,
-        parentId: data.parentId ?? null,
         orgId: categoryOrgId,
       },
     });

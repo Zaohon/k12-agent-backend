@@ -5,6 +5,32 @@ import { PrismaService } from '../prisma.service';
 export class ApprovalService {
   constructor(private prisma: PrismaService) {}
 
+  private async getCurrentOrgId(user: any) {
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { orgId: true },
+    });
+
+    return currentUser?.orgId ?? user.orgId ?? null;
+  }
+
+  private async assertReviewCategoryAllowed(user: any, agent: any, categoryId: number) {
+    const category = await this.prisma.category.findUnique({ where: { id: categoryId } });
+    if (!category || category.deletedAt) {
+      throw new ForbiddenException('分类不存在或已删除');
+    }
+
+    const currentOrgId = await this.getCurrentOrgId(user);
+
+    if (user.role !== 'SUPER_ADMIN' && category.orgId !== null && category.orgId !== currentOrgId) {
+      throw new ForbiddenException('只能挂到当前组织分类');
+    }
+
+    if (category.orgId !== null && agent.orgId !== category.orgId) {
+      throw new ForbiddenException('智能体必须与目标分类同组织');
+    }
+  }
+
   async listPending(user: any) {
     if (user.role !== 'SUPER_ADMIN' && user.role !== 'SCHOOL_ADMIN') {
       throw new ForbiddenException('权限不足');
@@ -23,12 +49,7 @@ export class ApprovalService {
       });
     }
 
-    const currentUser = await this.prisma.user.findUnique({
-      where: { id: user.id },
-      select: { orgId: true },
-    });
-
-    const orgId = currentUser?.orgId ?? user.orgId;
+    const orgId = await this.getCurrentOrgId(user);
 
     if (!orgId) {
       throw new ForbiddenException('当前账号未绑定组织');
@@ -57,7 +78,8 @@ export class ApprovalService {
     }
 
     if (user.role === 'SCHOOL_ADMIN') {
-      if (agent.orgId !== user.orgId) {
+      const currentOrgId = await this.getCurrentOrgId(user);
+      if (agent.orgId !== currentOrgId) {
         throw new ForbiddenException('只能审批当前组织的申请');
       }
       if (agent.visibility === 'PUBLIC') {
@@ -67,6 +89,7 @@ export class ApprovalService {
 
     // Process category link
     if (status === 'APPROVED' && extra.categoryId) {
+      await this.assertReviewCategoryAllowed(user, agent, extra.categoryId);
       await this.prisma.agentCategory.upsert({
         where: { agentId_categoryId: { agentId, categoryId: extra.categoryId } },
         create: { agentId, categoryId: extra.categoryId },
