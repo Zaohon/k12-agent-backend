@@ -151,12 +151,6 @@ export class AgentService implements OnModuleInit {
       console.log('Seeded initial applications.');
     }
 
-    if (admin?.orgId) {
-      await this.prisma.agent.updateMany({
-        where: { orgId: null } as any,
-        data: { orgId: admin.orgId },
-      });
-    }
     await this.prisma.agent.updateMany({
       where: { visibility: 'PUBLIC' },
       data: { visibility: 'ORG_VISIBLE' },
