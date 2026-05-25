@@ -27,6 +27,15 @@ export class AgentController {
     return { success: true, data: agents };
   }
 
+  @Get('org')
+  async getOrgAgents(@Req() req: any, @Query('orgId') orgId?: string) {
+    const agents = await this.agentService.getOrgAgents(
+      req.user,
+      orgId ? parseInt(orgId) : undefined,
+    );
+    return { success: true, data: agents };
+  }
+
   @Get('my')
   async getMyAgents(@Req() req: any) {
     const agents = await this.agentService.getMyAgents(req.user.id);

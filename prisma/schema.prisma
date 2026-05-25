@@ -75,7 +75,7 @@ model Agent {
   enableFileUpload Boolean @default(false) @map("enable_file_upload")
   enableKnowledgeBase Boolean @default(false) @map("enable_knowledge_base")
   creatorId      Int       @map("creator_id")
-  orgId          Int?      @map("org_id")
+  orgId          Int       @map("org_id")
   visibility     String    @default("PRIVATE") @db.VarChar(32)
   approvalStatus String    @default("APPROVED") @map("approval_status") @db.VarChar(32)
   isFeatured     Boolean   @default(false) @map("is_featured")
@@ -85,7 +85,7 @@ model Agent {
   deletedAt      DateTime? @map("deleted_at")
 
   creator       User          @relation(fields: [creatorId], references: [id])
-  organization  Organization? @relation(fields: [orgId], references: [id])
+  organization  Organization @relation(fields: [orgId], references: [id])
   conversations Conversation[]
   categories    AgentCategory[]
 

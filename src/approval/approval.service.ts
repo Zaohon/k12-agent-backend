@@ -82,9 +82,6 @@ export class ApprovalService {
       if (agent.orgId !== currentOrgId) {
         throw new ForbiddenException('只能审批当前组织的申请');
       }
-      if (agent.visibility === 'PUBLIC') {
-        throw new ForbiddenException('发布到公共池需要超级管理员审批');
-      }
     }
 
     // Process category link

@@ -265,7 +265,6 @@ export class SessionService {
   private canAccessAgent(user: any, agent: any) {
     if (user.role === 'SUPER_ADMIN') return true;
     if (agent.creatorId === user.id) return true;
-    if (agent.visibility === 'PUBLIC' && agent.approvalStatus === 'APPROVED') return true;
     if (
       agent.visibility === 'ORG_VISIBLE' &&
       agent.approvalStatus === 'APPROVED' &&

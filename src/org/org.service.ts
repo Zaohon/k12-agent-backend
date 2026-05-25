@@ -10,6 +10,7 @@ import { ensureDefaultKnowledgeFolders } from '../knowledge/knowledge-defaults';
 
 @Injectable()
 export class OrgService {
+  private static readonly PUBLIC_ORG_NAME = '\u516c\u5171\u7f51\u70b9 (\u9ed8\u8ba4)';
   private static readonly DEFAULT_ORG_CATEGORY_NAMES = ['精选页', '推荐页'];
 
   constructor(private prisma: PrismaService) {}
@@ -78,6 +79,12 @@ export class OrgService {
     const org = await this.prisma.organization.findUnique({ where: { id: orgId } });
     if (!org || org.deletedAt) {
       throw new BadRequestException('组织不存在');
+    }
+
+    if (org.orgName === OrgService.PUBLIC_ORG_NAME) {
+      throw new BadRequestException(
+        '\u516c\u5171\u7ec4\u7ec7\u7684\u7ba1\u7406\u5458\u4e0d\u5141\u8bb8\u66ff\u6362',
+      );
     }
 
     const targetUser = await this.prisma.user.findUnique({ where: { id: userId } });

@@ -64,7 +64,7 @@ CREATE TABLE `lq_agent` (
     `enable_file_upload` BOOLEAN NOT NULL DEFAULT false,
     `enable_knowledge_base` BOOLEAN NOT NULL DEFAULT false,
     `creator_id` INTEGER NOT NULL,
-    `org_id` INTEGER NULL,
+    `org_id` INTEGER NOT NULL,
     `visibility` VARCHAR(32) NOT NULL DEFAULT 'PRIVATE',
     `approval_status` VARCHAR(32) NOT NULL DEFAULT 'APPROVED',
     `is_featured` BOOLEAN NOT NULL DEFAULT false,
@@ -246,7 +246,7 @@ ALTER TABLE `lq_user` ADD CONSTRAINT `lq_user_org_id_fkey` FOREIGN KEY (`org_id`
 ALTER TABLE `lq_agent` ADD CONSTRAINT `lq_agent_creator_id_fkey` FOREIGN KEY (`creator_id`) REFERENCES `lq_user`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE `lq_agent` ADD CONSTRAINT `lq_agent_org_id_fkey` FOREIGN KEY (`org_id`) REFERENCES `lq_organization`(`id`) ON DELETE SET NULL ON UPDATE CASCADE;
+ALTER TABLE `lq_agent` ADD CONSTRAINT `lq_agent_org_id_fkey` FOREIGN KEY (`org_id`) REFERENCES `lq_organization`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE `lq_agent_category` ADD CONSTRAINT `lq_agent_category_agent_id_fkey` FOREIGN KEY (`agent_id`) REFERENCES `lq_agent`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;

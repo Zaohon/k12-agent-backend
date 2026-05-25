@@ -1,8 +1,10 @@
-import { ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 
 @Injectable()
 export class AgentService implements OnModuleInit {
+  private static readonly ALLOWED_VISIBILITIES = new Set(['PRIVATE', 'ORG_VISIBLE']);
+
   constructor(private prisma: PrismaService) {}
 
   private async ensureSystemAdminBoundToPublicOrg() {
@@ -14,6 +16,26 @@ export class AgentService implements OnModuleInit {
       },
       orderBy: { id: 'asc' },
     });
+  }
+
+  private normalizeVisibility(value: unknown) {
+    const visibility = String(value || 'PRIVATE').trim() || 'PRIVATE';
+    if (!AgentService.ALLOWED_VISIBILITIES.has(visibility)) {
+      throw new BadRequestException('智能体可见性仅支持 PRIVATE 或 ORG_VISIBLE');
+    }
+    return visibility;
+  }
+
+  private async getRequiredOrgId(user: { id: number; orgId?: number }) {
+    const currentUser = await this.prisma.user.findUnique({
+      where: { id: user.id },
+      select: { orgId: true },
+    });
+    const orgId = currentUser?.orgId ?? user.orgId;
+    if (!orgId) {
+      throw new ForbiddenException('当前账号未绑定组织，无法操作智能体');
+    }
+    return orgId;
   }
 
   private normalizeAgentConfigForCreate(data: any) {
@@ -30,7 +52,7 @@ export class AgentService implements OnModuleInit {
       enableDeepThink: Boolean(data?.enableDeepThink),
       enableFileUpload: Boolean(data?.enableFileUpload),
       enableKnowledgeBase: Boolean(data?.enableKnowledgeBase),
-      visibility: data?.visibility || 'PRIVATE',
+      visibility: this.normalizeVisibility(data?.visibility),
     };
   }
 
@@ -68,15 +90,20 @@ export class AgentService implements OnModuleInit {
         console.log('Skipped initial agent seed because no active SUPER_ADMIN user exists.');
         return;
       }
+      if (!admin.orgId) {
+        console.log('Skipped initial agent seed because the active SUPER_ADMIN user is not bound to an organization.');
+        return;
+      }
 
       const agents = [
         {
           title: '标准教案生成器',
           description: '一键生成包含三维目标与板书设计的高质量教案，适配国内教研标准。',
           systemPrompt: '你是一位资深高级教师与教研员。请根据用户提供的模板和条件，输出一份专业且详细的教案。教案内容必须结构清晰，包含：1. 教学目标（知识、能力、情感态度） 2. 教学重难点 3. 课时安排 4. 教学过程（包含导入、互动、总结等环节） 5. 板书设计。尽量使用 Markdown 排版。',
-          visibility: 'PUBLIC',
+          visibility: 'ORG_VISIBLE',
           approvalStatus: 'APPROVED',
           creatorId: admin.id,
+          orgId: admin.orgId,
           iconUrl: 'Document',
           formConfig: JSON.stringify([
             { key: 'subject', label: '教学科目与学段', type: 'input', required: true, placeholder: '如：初二语文' },
@@ -89,9 +116,10 @@ export class AgentService implements OnModuleInit {
           title: '奥数逻辑大师',
           description: '引导学生通过多步推导解决复杂的竞赛级数学题。',
           systemPrompt: '你是奥林匹克数学竞赛国家级指导老师。不要直接给出最终答案，而是要一步步引导学生发掘解题思路，使用启发式的语言给出数学证明和逻辑线索。如果条件不足，需要敏锐地指出。',
-          visibility: 'PUBLIC',
+          visibility: 'ORG_VISIBLE',
           approvalStatus: 'APPROVED',
           creatorId: admin.id,
+          orgId: admin.orgId,
           iconUrl: 'DataAnalysis',
           formConfig: JSON.stringify([
             { key: 'grade', label: '学生年级', type: 'input', required: true, placeholder: '如：小学五年级' },
@@ -103,9 +131,10 @@ export class AgentService implements OnModuleInit {
           title: '班主任沟通助手',
           description: '帮助班主任生成有温度且客观的家校沟通话术。',
           systemPrompt: '你拥有十五年优秀班主任经验。请负责生成向家长反馈学生在校情况的话术。语气要委婉、专业、体现出对孩子的关爱，做到先肯定优点，再客观指出不足，最后提出家校合力的改进建议。如果遇到严重纪律问题，态度要不卑不亢、有理有据。',
-          visibility: 'PUBLIC',
+          visibility: 'ORG_VISIBLE',
           approvalStatus: 'APPROVED',
           creatorId: admin.id,
+          orgId: admin.orgId,
           iconUrl: 'ChatDotRound',
           formConfig: JSON.stringify([
             { key: 'student_name', label: '学生姓名', type: 'input', required: true, placeholder: '如：张小明' },
@@ -121,6 +150,17 @@ export class AgentService implements OnModuleInit {
       }
       console.log('Seeded initial applications.');
     }
+
+    if (admin?.orgId) {
+      await this.prisma.agent.updateMany({
+        where: { orgId: null } as any,
+        data: { orgId: admin.orgId },
+      });
+    }
+    await this.prisma.agent.updateMany({
+      where: { visibility: 'PUBLIC' },
+      data: { visibility: 'ORG_VISIBLE' },
+    });
 
     // Hot-patch existing agents in the database if they lack formConfig
     const existingAgents = await this.prisma.agent.findMany();
@@ -171,26 +211,20 @@ export class AgentService implements OnModuleInit {
    * This is the core logic specified in PRD for "visibility vs approvals".
    */
   async getDiscoverableAgents(user: { id: number, role: string, orgId?: number }, categoryId?: number) {
+    const orgId = await this.getRequiredOrgId(user);
     const whereClause: any = {
+      deletedAt: null,
       OR: [
-        {
-          visibility: 'PUBLIC',
-          approvalStatus: 'APPROVED',
-        },
         {
           visibility: 'ORG_VISIBLE',
           approvalStatus: 'APPROVED',
-          orgId: user.orgId,
+          orgId,
         },
         {
           creatorId: user.id
         }
       ]
     };
-
-    if (user.role === 'SUPER_ADMIN') {
-       delete whereClause.OR;
-    }
 
     if (categoryId) {
        whereClause.categories = {
@@ -213,30 +247,53 @@ export class AgentService implements OnModuleInit {
   }
 
   async getFeaturedAgents(user: { id: number, role: string, orgId?: number }) {
+     const orgId = await this.getRequiredOrgId(user);
      return this.prisma.agent.findMany({
         where: {
+           orgId,
            isFeatured: true,
            approvalStatus: 'APPROVED',
-           OR: [
-              { visibility: 'PUBLIC' },
-              { visibility: 'ORG_VISIBLE', orgId: user.orgId }
-           ]
+           visibility: 'ORG_VISIBLE',
+           deletedAt: null,
         },
         take: 5,
         orderBy: { updatedAt: 'desc' }
      });
   }
 
+  async getOrgAgents(user: { id: number, role: string, orgId?: number }, orgIdParam?: number) {
+    const currentOrgId = await this.getRequiredOrgId(user);
+    const orgId = user.role === 'SUPER_ADMIN' && orgIdParam ? orgIdParam : currentOrgId;
+
+    if (user.role !== 'SUPER_ADMIN' && orgId !== currentOrgId) {
+      throw new ForbiddenException('只能查看当前组织的智能体');
+    }
+
+    return this.prisma.agent.findMany({
+      where: {
+        orgId,
+        deletedAt: null,
+      },
+      include: {
+        categories: {
+          include: { category: true },
+        },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+  }
+
   async createAgent(user: { id: number, orgId?: number, role: string }, data: any) {
     const cleanData = this.normalizeAgentConfigForCreate(data);
-    const isPublic = cleanData.visibility !== 'PRIVATE';
+    const orgId = await this.getRequiredOrgId(user);
+    const requiresApproval = cleanData.visibility === 'ORG_VISIBLE';
 
     return this.prisma.agent.create({
       data: {
         ...cleanData,
         creatorId: user.id,
-        orgId: user.orgId,
-        approvalStatus: isPublic ? 'PENDING' : 'APPROVED',
+        orgId,
+        approvalStatus: requiresApproval ? 'PENDING' : 'APPROVED',
       }
     });
   }
@@ -251,7 +308,10 @@ export class AgentService implements OnModuleInit {
     }
 
     const cleanData = this.normalizeAgentConfigForUpdate(data);
-    if (cleanData.visibility === 'PUBLIC' || cleanData.visibility === 'ORG_VISIBLE') {
+    if (Object.prototype.hasOwnProperty.call(cleanData, 'visibility')) {
+      cleanData.visibility = this.normalizeVisibility(cleanData.visibility);
+    }
+    if (cleanData.visibility === 'ORG_VISIBLE') {
       cleanData.approvalStatus = 'PENDING';
     } else if (cleanData.visibility === 'PRIVATE') {
       cleanData.approvalStatus = 'APPROVED';
