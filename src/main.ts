@@ -1,3 +1,4 @@
+// CI/CD pipeline test - 2026-05-26
 import 'dotenv/config';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';

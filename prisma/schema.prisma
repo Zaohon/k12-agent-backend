@@ -12,6 +12,7 @@ model Organization {
   orgName     String    @unique(map: "uk_lq_organization_org_name") @map("org_name")
   contactInfo String?   @map("contact_info")
   status      String    @default("ACTIVE")
+  storageQuotaBytes BigInt @default(1073741824) @map("storage_quota_bytes")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
   deletedAt   DateTime? @map("deleted_at")
