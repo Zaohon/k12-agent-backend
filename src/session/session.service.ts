@@ -146,7 +146,7 @@ export class SessionService {
 
     const messages: LlmMessage[] = history.reverse().map((message) => this.mapStoredMessageToLlmMessage(message));
 
-    let model = process.env.AI_MODEL || 'deepseek-v4-flash';
+    let model: string | undefined;
     let agentForLlm: AgentLlmConfig | null = null;
     if (session.agentId) {
       const agent = await this.prisma.agent.findUnique({ where: { id: session.agentId } });
@@ -197,7 +197,9 @@ export class SessionService {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    const { fullResponse } = await this.llmService.streamToSse(messages, res, agentForLlm, model);
+    const { fullResponse } = await this.llmService.streamToSse(messages, res, agentForLlm, model, {
+      orgId: user.orgId,
+    });
 
     if (fullResponse) {
       await this.prisma.message.create({
@@ -218,7 +220,7 @@ export class SessionService {
           currentSession.topic === SessionService.DEFAULT_TOPIC ||
           this.isClearlyBrokenTopic(currentSession.topic))
       ) {
-        this.generateTopic(sessionId, text || storedUserContent, fullResponse, model).catch((e) =>
+        this.generateTopic(sessionId, text || storedUserContent, fullResponse, model, user.orgId).catch((e) =>
           console.error('Topic gen error', e),
         );
       }
@@ -232,7 +234,13 @@ export class SessionService {
     res.end();
   }
 
-  private async generateTopic(sessionId: number, userMsg: string, aiMsg: string, model?: string) {
+  private async generateTopic(
+    sessionId: number,
+    userMsg: string,
+    aiMsg: string,
+    model?: string,
+    orgId?: number | null,
+  ) {
     const summaryPrompt =
       `Summarize this conversation into one short Chinese title within 10 characters. ` +
       `Do not include punctuation or quotes. User: ${userMsg}. Assistant: ${aiMsg}`;
@@ -240,6 +248,7 @@ export class SessionService {
       [{ role: 'user', content: summaryPrompt }],
       null,
       model,
+      { orgId },
     );
     const topic = this.normalizeTopic(result.text);
     await this.prisma.conversation.update({

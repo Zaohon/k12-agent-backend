@@ -1,5 +1,6 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
 import type { Response as ExpressResponse } from 'express';
+import { PrismaService } from '../prisma.service';
 
 type SupportedRole = 'system' | 'developer' | 'user' | 'assistant';
 
@@ -15,6 +16,17 @@ export interface AgentLlmConfig {
   enableDeepThink?: boolean;
 }
 
+export interface LlmRequestContext {
+  orgId?: number | null;
+}
+
+interface LlmRuntimeConfig {
+  apiBase: string;
+  apiKey: string;
+  model?: string | null;
+  provider?: string | null;
+}
+
 interface StreamResult {
   fullResponse: string;
 }
@@ -26,6 +38,8 @@ interface CompletionResult {
 @Injectable()
 export class LlmService {
   private readonly logger = new Logger(LlmService.name);
+
+  constructor(private readonly prisma: PrismaService) {}
 
   private static readonly RESPONSE_MODEL_PREFIXES = [
     'qwen3-max',
@@ -40,12 +54,14 @@ export class LlmService {
     res: ExpressResponse,
     agent?: AgentLlmConfig | null,
     modelOverride?: string,
+    context?: LlmRequestContext,
   ): Promise<StreamResult> {
-    const model = this.resolveModel(agent, modelOverride);
-    const useResponses = this.shouldUseResponses(agent, model);
+    const runtimeConfig = await this.resolveRuntimeConfig(context?.orgId);
+    const model = this.resolveModel(agent, modelOverride, runtimeConfig);
+    const useResponses = this.shouldUseResponses(agent, model, runtimeConfig);
     const upstreamResponse = await (useResponses
-      ? this.fetchResponses(messages, model, true, agent)
-      : this.fetchChatCompletions(messages, model, true));
+      ? this.fetchResponses(messages, model, true, runtimeConfig, agent)
+      : this.fetchChatCompletions(messages, model, true, runtimeConfig));
 
     if (!upstreamResponse.ok || !upstreamResponse.body) {
       const errorText = await upstreamResponse.text().catch(() => 'LLM request failed');
@@ -62,12 +78,14 @@ export class LlmService {
     messages: LlmMessage[],
     agent?: AgentLlmConfig | null,
     modelOverride?: string,
+    context?: LlmRequestContext,
   ): Promise<CompletionResult> {
-    const model = this.resolveModel(agent, modelOverride);
-    const useResponses = this.shouldUseResponses(agent, model);
+    const runtimeConfig = await this.resolveRuntimeConfig(context?.orgId);
+    const model = this.resolveModel(agent, modelOverride, runtimeConfig);
+    const useResponses = this.shouldUseResponses(agent, model, runtimeConfig);
     const upstreamResponse = await (useResponses
-      ? this.fetchResponses(messages, model, false, agent)
-      : this.fetchChatCompletions(messages, model, false));
+      ? this.fetchResponses(messages, model, false, runtimeConfig, agent)
+      : this.fetchChatCompletions(messages, model, false, runtimeConfig));
 
     if (!upstreamResponse.ok) {
       const errorText = await upstreamResponse.text().catch(() => 'LLM request failed');
@@ -80,9 +98,13 @@ export class LlmService {
     };
   }
 
-  private shouldUseResponses(agent: AgentLlmConfig | null | undefined, model: string): boolean {
+  private shouldUseResponses(
+    agent: AgentLlmConfig | null | undefined,
+    model: string,
+    runtimeConfig: LlmRuntimeConfig,
+  ): boolean {
     if (!agent) return false;
-    if (!this.isAliyunProvider()) return false;
+    if (!this.isAliyunProvider(runtimeConfig)) return false;
 
     const hasAdvancedCapability = Boolean(
       agent.enableDeepThink || agent.enableWebSearch || agent.enableWebParse,
@@ -96,23 +118,56 @@ export class LlmService {
     return LlmService.RESPONSE_MODEL_PREFIXES.some((prefix) => model.startsWith(prefix));
   }
 
-  private resolveModel(agent?: AgentLlmConfig | null, modelOverride?: string): string {
+  private resolveModel(
+    agent: AgentLlmConfig | null | undefined,
+    modelOverride: string | undefined,
+    runtimeConfig: LlmRuntimeConfig,
+  ): string {
     return (
       modelOverride ||
       agent?.model ||
+      runtimeConfig.model ||
       process.env.AI_MODEL ||
       'deepseek-v4-flash'
     );
   }
 
-  private isAliyunProvider(): boolean {
-    const provider = String(process.env.AI_PROVIDER || '').trim().toLowerCase();
-    const apiBase = this.getApiBase();
+  private isAliyunProvider(runtimeConfig: LlmRuntimeConfig): boolean {
+    const provider = String(runtimeConfig.provider || process.env.AI_PROVIDER || '').trim().toLowerCase();
+    const apiBase = runtimeConfig.apiBase;
     return provider === 'aliyun' || apiBase.includes('dashscope.aliyuncs.com');
   }
 
-  private getApiBase() {
-    return (process.env.AI_API_BASE || 'https://api.deepseek.com').replace(/\/$/, '');
+  private async resolveRuntimeConfig(orgId?: number | null): Promise<LlmRuntimeConfig> {
+    const orgConfig = orgId
+      ? await this.prisma.modelConfig.findFirst({
+          where: {
+            orgId,
+            status: 'ACTIVE',
+            deletedAt: null,
+          },
+          orderBy: [{ isDefault: 'desc' }, { updatedAt: 'desc' }],
+        })
+      : null;
+
+    if (orgId && !orgConfig) {
+      throw new InternalServerErrorException('当前用户所在组织未配置模型服务');
+    }
+
+    const orgApiBase = orgConfig?.apiBaseUrl?.trim();
+    const orgApiKey = orgConfig?.apiKey?.trim();
+    if (orgConfig && (!orgApiBase || !orgApiKey)) {
+      throw new InternalServerErrorException('当前用户所在组织的模型服务 URL 或 Key 未配置');
+    }
+
+    const apiBase = (orgApiBase || process.env.AI_API_BASE || 'https://api.deepseek.com').replace(/\/$/, '');
+    const apiKey = orgApiKey || process.env.AI_API_KEY || '';
+
+    return {
+      apiBase,
+      apiKey,
+      model: orgConfig?.defaultModel || null,
+    };
   }
 
   private configureTransportIfNeeded() {
@@ -127,13 +182,18 @@ export class LlmService {
     setGlobalDispatcher(insecureAgent);
   }
 
-  private async fetchChatCompletions(messages: LlmMessage[], model: string, stream: boolean) {
+  private async fetchChatCompletions(
+    messages: LlmMessage[],
+    model: string,
+    stream: boolean,
+    runtimeConfig: LlmRuntimeConfig,
+  ) {
     this.configureTransportIfNeeded();
 
-    return fetch(`${this.getApiBase()}/chat/completions`, {
+    return fetch(`${runtimeConfig.apiBase}/chat/completions`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${process.env.AI_API_KEY || ''}`,
+        Authorization: `Bearer ${runtimeConfig.apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
@@ -148,6 +208,7 @@ export class LlmService {
     messages: LlmMessage[],
     model: string,
     stream: boolean,
+    runtimeConfig: LlmRuntimeConfig,
     agent?: AgentLlmConfig | null,
   ) {
     this.configureTransportIfNeeded();
@@ -173,10 +234,10 @@ export class LlmService {
       body.enable_thinking = true;
     }
 
-    return fetch(`${this.getApiBase()}/responses`, {
+    return fetch(`${runtimeConfig.apiBase}/responses`, {
       method: 'POST',
       headers: {
-        Authorization: `Bearer ${process.env.AI_API_KEY || ''}`,
+        Authorization: `Bearer ${runtimeConfig.apiKey}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(body),

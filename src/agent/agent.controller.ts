@@ -146,35 +146,20 @@ ${rawText}`;
   }
 
   private async callAI(inputText: string): Promise<string> {
-    const apiKey = process.env.AI_API_KEY || '';
-    const apiBase = (process.env.AI_API_BASE || 'https://api.deepseek.com').replace(/\/$/, '');
-    const model = process.env.AI_MODEL || 'deepseek-v4-flash';
+    const result = await this.llmService.completeText(
+      [
+        {
+          role: 'system',
+          content:
+            '你是资深提示词工程师。你的任务是把用户提示词改写为更高质量版本，并严格遵守用户给出的长度限制。',
+        },
+        { role: 'user', content: inputText },
+      ],
+      null,
+    );
 
-    const response = await fetch(`${apiBase}/chat/completions`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model,
-        messages: [
-          {
-            role: 'system',
-            content:
-              '你是资深提示词工程师。你的任务是把用户提示词改写为更高质量版本，并严格遵守用户给出的长度限制。',
-          },
-          { role: 'user', content: inputText },
-        ],
-        temperature: 0.3,
-        max_tokens: 800,
-        stream: false,
-      }),
-    });
-
-    const data = await response.json();
-    const content = data?.choices?.[0]?.message?.content || data?.choices?.[0]?.text;
-    if (!response.ok || !content) {
+    const content = result.text;
+    if (!content) {
       throw new BadRequestException('大模型优化失败，请稍后重试');
     }
 
