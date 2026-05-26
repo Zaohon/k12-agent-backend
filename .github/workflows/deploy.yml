@@ -36,11 +36,7 @@ jobs:
       contents: read
       packages: read
     env:
-      # To speed up pulls in China, set IMAGE_REGISTRY secret to:
-      # - ghcr.nju.edu.cn (Nanjing University mirror)
-      # - ghcr-proxy.dockerproxy.com
-      # - ghcr.chenby.cn
-      IMAGE_REGISTRY: ${{ secrets.IMAGE_REGISTRY || 'ghcr.io' }}
+      IMAGE_REGISTRY: ghcr.nju.edu.cn
     steps:
       - uses: actions/checkout@v4
 
@@ -63,8 +59,7 @@ jobs:
           command_timeout: 30m
           script: |
             cd /root/K12AgentWeb
-            IMAGE_REGISTRY="${{ env.IMAGE_REGISTRY }}"
-            echo "=== Using image registry: ${IMAGE_REGISTRY} ==="
+            echo "=== Using image registry: ghcr.nju.edu.cn ==="
             if docker compose version >/dev/null 2>&1; then
               COMPOSE="docker compose"
             elif command -v docker-compose >/dev/null 2>&1; then
@@ -75,9 +70,8 @@ jobs:
               exit 1
             fi
             echo "=== Logging in to GHCR (${IMAGE_REGISTRY}) ==="
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login "$IMAGE_REGISTRY" -u "${{ github.actor }}" --password-stdin
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login "ghcr.nju.edu.cn" -u "${{ github.actor }}" --password-stdin
             echo "=== Pulling latest backend image ==="
-            export IMAGE_REGISTRY
             $COMPOSE pull backend
             echo "=== Restarting backend service ==="
             $COMPOSE up -d --no-deps backend
