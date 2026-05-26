@@ -24,8 +24,8 @@ export class SessionService {
     });
   }
 
-  async createSession(userId: number, agentId?: number) {
-    const effectiveAgentId = agentId || SessionService.DEFAULT_AGENT_ID;
+  async createSession(userId: number, agentId?: number | null) {
+    const effectiveAgentId = agentId ?? SessionService.DEFAULT_AGENT_ID;
     if (effectiveAgentId) {
       const [user, agent] = await Promise.all([
         this.prisma.user.findUnique({ where: { id: userId } }),
@@ -272,6 +272,7 @@ export class SessionService {
   }
 
   private canAccessAgent(user: any, agent: any) {
+    if (agent.id === SessionService.DEFAULT_AGENT_ID) return true;
     if (user.role === 'SUPER_ADMIN') return true;
     if (agent.creatorId === user.id) return true;
     if (
