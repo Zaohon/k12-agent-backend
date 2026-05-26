@@ -121,7 +121,11 @@ export class SessionService {
 
     const user = await this.prisma.user.findUnique({ where: { id: userId } });
     if (!user || user.consumedToken >= user.tokenLimit) {
-      throw new ForbiddenException('您的 Token 额度已耗尽，或账号状态异常。');
+      throw new ForbiddenException({
+        message: '您的 Token 额度已耗尽，或账号状态异常。',
+        error: 'Forbidden',
+        statusCode: 4031,
+      });
     }
 
     const history = await this.prisma.message.findMany({
