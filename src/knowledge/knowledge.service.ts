@@ -326,8 +326,9 @@ export class KnowledgeService {
     body: { fileName: string; contentType?: string; folderId?: number | null },
   ) {
     const fileName = this.normalizeFileName(body?.fileName);
-    await this.resolveIncomingFolderId(user, body?.folderId ?? undefined, {
-      useAutoUploadWhenMissing: true,
+    const hasFolderId = Object.prototype.hasOwnProperty.call(body || {}, 'folderId');
+    await this.resolveIncomingFolderId(user, body?.folderId, {
+      useAutoUploadWhenMissing: !hasFolderId,
     });
 
     const objectKey = this.buildObjectKey(user.id, fileName);
@@ -346,8 +347,9 @@ export class KnowledgeService {
     },
   ) {
     const name = this.normalizeFileName(body?.name);
-    const folderId = await this.resolveIncomingFolderId(user, body?.folderId ?? undefined, {
-      useAutoUploadWhenMissing: true,
+    const hasFolderId = Object.prototype.hasOwnProperty.call(body || {}, 'folderId');
+    const folderId = await this.resolveIncomingFolderId(user, body?.folderId, {
+      useAutoUploadWhenMissing: !hasFolderId,
     });
 
     const ossKey = String(body?.ossKey || '').trim();
