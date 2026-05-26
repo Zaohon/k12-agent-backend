@@ -1,6 +1,6 @@
 ﻿# K12 Agent Backend API 文档（含输入输出示例）
 
-更新时间：2026-05-21（补充文件解析复用链路、语音转文字接口、会话附件能力、审批权限调整与组织成员硬删除接口）
+更新时间：2026-05-26（按当前后端 Controller/Service 重新校对：补充组织智能体接口、更新可见性/审批/知识库删除规则）
 适用项目：`k12-agent-backend`
 
 ## 通用说明
@@ -52,6 +52,7 @@
 | --- | --- |
 | `GET /agent/discover` | 登录用户 |
 | `GET /agent/featured` | 登录用户 |
+| `GET /agent/org` | 登录用户 |
 | `GET /agent/my` | 登录用户 |
 | `GET /agent/:id` | 登录用户 |
 | `POST /agent/create` | 登录用户 |
@@ -61,7 +62,8 @@
 | `DELETE /agent/:id` | 创建者本人或 `SUPER_ADMIN` |
 
 补充：
-- `POST /agent/create` 创建 `PUBLIC` / `ORG_VISIBLE` 智能体时，会进入 `PENDING` 审批。
+- 当前后端只允许创建/更新 `PRIVATE`、`ORG_VISIBLE` 两种可见性；`PUBLIC` 会被拒绝。
+- `POST /agent/create` 创建 `ORG_VISIBLE` 智能体时，会进入 `PENDING` 审批；`PRIVATE` 直接 `APPROVED`。
 - `GET /agent/:id` 当前实现只要求登录，不额外校验可见性。
 
 ### Category
@@ -101,9 +103,8 @@
 | `POST /approval/review/:id` | `SUPER_ADMIN` 或 `SCHOOL_ADMIN` |
 
 补充：
-- `SCHOOL_ADMIN` 只能审批本组织智能体。
-- `SCHOOL_ADMIN` 不能审批 `visibility === PUBLIC` 的智能体。
-- `SUPER_ADMIN` 可兜底审批所有类型智能体。
+- 审批列表按当前登录用户所属组织返回；`SUPER_ADMIN` 和 `SCHOOL_ADMIN` 都只返回该组织下未删除智能体。
+- 当前后端只支持 `PRIVATE` / `ORG_VISIBLE`，审批主要用于 `ORG_VISIBLE` 智能体。
 
 ### Model Config
 
@@ -116,7 +117,7 @@
 
 | 接口 | 权限 |
 | --- | --- |
-| `GET /org/list` | `SUPER_ADMIN` |
+| `GET /org/list` | `SUPER_ADMIN` 或 `SCHOOL_ADMIN` |
 | `POST /org/create` | `SUPER_ADMIN` |
 | `POST /org/admin` | `SUPER_ADMIN` |
 | `GET /org/:orgId/users` | `SUPER_ADMIN` 或同组织 `SCHOOL_ADMIN` |
@@ -272,7 +273,7 @@ curl -X GET "http://localhost:3000/auth/profile" -H "Authorization: Bearer <toke
 
 说明：
 - 本章节所有接口都需要 JWT。
-- `visibility` 目前可取：`PRIVATE`、`ORG_VISIBLE`、`PUBLIC`。
+- `visibility` 目前可取：`PRIVATE`、`ORG_VISIBLE`。当前后端会拒绝 `PUBLIC`。
 - `approvalStatus` 目前可取：`PENDING`、`APPROVED`、`REJECTED`。
 - 创建/修改时，布尔能力开关会被后端转成 `true/false`。
 
@@ -280,11 +281,10 @@ curl -X GET "http://localhost:3000/auth/profile" -H "Authorization: Bearer <toke
 用途：获取当前用户在“发现页”可见的智能体列表。
 
 规则：
-- 普通用户可看到：
-  - `PUBLIC + APPROVED` 的智能体
+- 所有角色都需要绑定组织。
+- 当前用户可看到：
   - 本组织下 `ORG_VISIBLE + APPROVED` 的智能体
   - 自己创建的智能体
-- `SUPER_ADMIN` 当前会放宽可见性过滤，返回全部智能体。
 - 可选按分类过滤：`categoryId`
 
 请求示例：
@@ -300,7 +300,7 @@ curl -X GET "http://localhost:3000/agent/discover?categoryId=1" -H "Authorizatio
     {
       "id": 5,
       "title": "东西",
-      "description": "测试公共智能体",
+      "description": "测试组织可见智能体",
       "iconUrl": "Document",
       "systemPrompt": "你是一个测试助手",
       "welcomeMsg": "你好，我来帮你",
@@ -313,7 +313,7 @@ curl -X GET "http://localhost:3000/agent/discover?categoryId=1" -H "Authorizatio
       "enableKnowledgeBase": false,
       "creatorId": 5,
       "orgId": 1,
-      "visibility": "PUBLIC",
+      "visibility": "ORG_VISIBLE",
       "approvalStatus": "APPROVED",
       "isFeatured": false,
       "status": "ACTIVE",
@@ -350,10 +350,7 @@ curl -X GET "http://localhost:3000/agent/discover?categoryId=1" -H "Authorizatio
 用途：获取首页精选智能体，最多返回 5 条。
 
 规则：
-- 仅返回 `isFeatured = true` 且 `approvalStatus = APPROVED` 的智能体
-- 可见范围为：
-  - `PUBLIC`
-  - 当前用户组织下的 `ORG_VISIBLE`
+- 仅返回当前用户组织下 `ORG_VISIBLE`、`isFeatured = true` 且 `approvalStatus = APPROVED` 的智能体
 
 请求示例：
 ```bash
@@ -369,9 +366,39 @@ curl -X GET "http://localhost:3000/agent/featured" -H "Authorization: Bearer <to
       "id": 1,
       "title": "标准教案生成器",
       "isFeatured": true,
-      "visibility": "PUBLIC",
+      "visibility": "ORG_VISIBLE",
       "approvalStatus": "APPROVED",
       "updatedAt": "2026-05-15T10:00:00.000Z"
+    }
+  ]
+}
+```
+
+### GET `/agent/org`
+用途：获取组织下的全部未删除智能体。
+
+规则：
+- 普通用户只能查看自己所属组织。
+- `SUPER_ADMIN` 可通过 `orgId` 查询指定组织；不传时查询自己所属组织。
+
+请求示例：
+```bash
+curl -X GET "http://localhost:3000/agent/org?orgId=3" -H "Authorization: Bearer <token>"
+```
+
+成功响应示例：
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": 45,
+      "title": "古诗词赏析小先生",
+      "orgId": 3,
+      "visibility": "ORG_VISIBLE",
+      "approvalStatus": "APPROVED",
+      "deletedAt": null,
+      "categories": []
     }
   ]
 }
@@ -484,7 +511,8 @@ curl -X GET "http://localhost:3000/agent/17" -H "Authorization: Bearer <token>"
 - `creatorId` 固定为当前登录用户
 - `orgId` 固定取当前登录用户的 `orgId`
 - 若 `visibility = PRIVATE`，则 `approvalStatus = APPROVED`
-- 若 `visibility != PRIVATE`，创建后统一为 `PENDING`
+- 若 `visibility = ORG_VISIBLE`，创建后为 `PENDING`
+- `PUBLIC` 当前不是合法值
 - 创建接口不接收 `categoryId`，分类关联需通过分类接口单独维护
 
 请求示例：
@@ -558,8 +586,9 @@ curl -X GET "http://localhost:3000/agent/17" -H "Authorization: Bearer <token>"
 
 更新规则：
 - 仅创建者本人或 `SUPER_ADMIN` 可以修改
-- 若本次将 `visibility` 更新为 `PUBLIC` 或 `ORG_VISIBLE`，后端会将 `approvalStatus` 重置为 `PENDING`
+- 若本次将 `visibility` 更新为 `ORG_VISIBLE`，后端会将 `approvalStatus` 重置为 `PENDING`
 - 若本次将 `visibility` 更新为 `PRIVATE`，后端会将 `approvalStatus` 改为 `APPROVED`
+- `PUBLIC` 当前不是合法值
 - 分类关联需通过分类接口单独维护
 
 请求示例：
@@ -638,6 +667,9 @@ curl -X DELETE "http://localhost:3000/agent/18" -H "Authorization: Bearer <token
 ### POST `/agent/optimize`
 用途：根据用户输入的提示词文本，调用后端大模型进行一键优化。
 
+说明：
+- 此接口不读取组织模型配置，直接使用全局 `.env` 中的 `AI_API_BASE`、`AI_API_KEY`、`AI_MODEL`。
+
 请求体：
 ```json
 {
@@ -683,7 +715,8 @@ curl -X DELETE "http://localhost:3000/agent/18" -H "Authorization: Bearer <token
 
 说明：
 - 此接口只做**单次 prompt 调试**，不绑定任何已有智能体
-- 使用默认模型（环境变量 `AI_MODEL`），不带 webSearch / deepThink 等额外能力
+- 不读取组织模型配置，直接使用全局 `.env` 中的 `AI_API_BASE`、`AI_API_KEY`、`AI_MODEL`
+- 不带 webSearch / deepThink 等额外能力
 - 返回格式与 `/session/chat/:id` 相同的 SSE 流
 
 请求示例：
@@ -814,6 +847,7 @@ data: [DONE]
 - `prompt` 和 `attachments` 不能同时为空。
 - `attachments` 当前统一使用知识库文件引用，传 `fileId` 即可。
 - 后端会优先复用 `KnowledgeFile.parsedText`；如果文件尚未解析，会先触发一次解析，再把解析文本注入对话上下文。
+- LLM 请求会按当前用户所属组织读取 `lq_model_config` 的 `apiBaseUrl`、`apiKey`、`defaultModel`；如果会话绑定的 agent 有 `model`，优先使用 agent 的 `model`。
 - 成功响应为 `text/event-stream`，前端应按 SSE 方式消费增量内容。
 
 前端传附件说明：
@@ -923,7 +957,11 @@ curl -X POST "http://localhost:3000/chat/voice" \
 ## 5) 组织 Org
 
 ### GET `/org/list`
-用途：获取组织列表（仅 `SUPER_ADMIN`）。
+用途：获取组织列表。
+
+权限与范围：
+- `SUPER_ADMIN`：返回全部组织。
+- `SCHOOL_ADMIN`：只返回自己所属组织。
 
 请求示例：
 ```bash
@@ -1173,8 +1211,8 @@ curl -X GET "http://localhost:3000/model-config" -H "Authorization: Bearer <toke
 ### GET `/approval/pending`
 用途：获取审批列表（包含所有 `approvalStatus`）。
 规则：
-- `SUPER_ADMIN`：可查看所有组织下智能体；
-- `SCHOOL_ADMIN`：只看当前组织下智能体；
+- `SUPER_ADMIN`：只看当前账号所属组织下未删除智能体；
+- `SCHOOL_ADMIN`：只看当前账号所属组织下未删除智能体；
 - 其他角色无权限。
 
 请求示例：
@@ -1200,8 +1238,8 @@ curl -X GET "http://localhost:3000/approval/pending" -H "Authorization: Bearer <
 
 ### POST `/approval/review/:id`
 说明：
-- `SCHOOL_ADMIN`：只能审批本组织、且 `visibility !== PUBLIC` 的智能体。
-- `SUPER_ADMIN`：可兜底审批所有类型智能体。
+- `SCHOOL_ADMIN`：只能审批本组织智能体。
+- `SUPER_ADMIN`：可审批智能体，但分类挂载仍需满足分类和智能体同组织。
 - 若传 `categoryId`，后端会校验该分类存在、未删除，且审批人和智能体都有权挂到该分类。
 
 请求示例（通过）：
@@ -1224,7 +1262,7 @@ curl -X GET "http://localhost:3000/approval/pending" -H "Authorization: Bearer <
 ### GET `/category/list`
 用途：获取分类列表（所有已登录用户可用）。
 说明：
-- `SUPER_ADMIN`：只返回公共组织（`orgId=1`）分类。
+- `SUPER_ADMIN`：优先返回当前账号所属组织分类；若账号没有 `orgId`，回退到“公共网点 (默认)”组织分类。
 - `SCHOOL_ADMIN` / 普通用户：只返回当前组织（`orgId=当前用户orgId`）分类。
 
 请求示例：
@@ -1369,8 +1407,8 @@ curl -X GET "http://localhost:3000/category/28/agents" -H "Authorization: Bearer
       "enableKnowledgeBase": false,
       "creatorId": 1,
       "creatorName": "system_admin",
-      "orgId": null,
-      "visibility": "PUBLIC",
+      "orgId": 1,
+      "visibility": "ORG_VISIBLE",
       "approvalStatus": "APPROVED",
       "status": "ACTIVE"
     }
@@ -1474,7 +1512,7 @@ curl -X DELETE "http://localhost:3000/category/28/agents/1" -H "Authorization: B
 3. 点击文件夹卡片
    用户点击“教案 / 课件 / 卷库 / 题库”这类文件夹卡片后：
    - 记录当前文件夹 id 作为 `currentFolderId`
-   - 调用 `GET /knowledge/entries?parentId={folderId}`
+   - 调用 `GET /knowledge/entries`，并在 query 中传 `parentId={folderId}`
    - 页面切换到该文件夹详情视图
 
 4. 新建文件夹
@@ -1691,6 +1729,15 @@ curl -X GET "http://localhost:3000/knowledge/folders/11" -H "Authorization: Bear
 - 不允许把文件夹移动到自己或自己的子孙目录下
 
 ### DELETE `/knowledge/folders/:id`
+用途：删除文件夹。
+
+当前实现：
+- 会递归找出该文件夹下所有未删除子文件夹。
+- 会硬删除这些文件夹下的文件记录和解析任务。
+- 会把相关消息附件里的 `knowledgeFileId` 置空。
+- 会硬删除该文件夹和全部子文件夹。
+- “自动上传”保留文件夹不可删除。
+
 请求示例：
 ```bash
 curl -X DELETE "http://localhost:3000/knowledge/folders/20" -H "Authorization: Bearer <token>"
@@ -1699,11 +1746,11 @@ curl -X DELETE "http://localhost:3000/knowledge/folders/20" -H "Authorization: B
 ```json
 { "success": true }
 ```
-失败响应示例（存在子文件夹或文件）：
+失败响应示例（删除自动上传保留文件夹）：
 ```json
 {
   "statusCode": 400,
-  "message": "Folder is not empty",
+  "message": "Folder \"自动上传\" cannot be renamed or deleted",
   "error": "Bad Request"
 }
 ```
@@ -1997,7 +2044,8 @@ curl -X GET "http://localhost:3000/knowledge/storage/stats" -H "Authorization: B
 ### Agent 可见性（visibility）
 - `PRIVATE`：仅自己可见
 - `ORG_VISIBLE`：组织内可见
-- `PUBLIC`：全平台可见（需审批逻辑）
+
+说明：当前后端已不支持 `PUBLIC`，传入会被拒绝。
 
 ### Agent 审批状态（approvalStatus）
 - `PENDING`：待审批
