@@ -32,6 +32,8 @@ jobs:
   deploy:
     needs: build-and-push
     runs-on: ubuntu-latest
+    permissions:
+      packages: read
     steps:
       - uses: actions/checkout@v4
 
@@ -54,15 +56,19 @@ jobs:
           command_timeout: 10m
           script: |
             cd /root/K12AgentWeb
-            echo "=== Cleaning up old containers ==="
-            docker compose down --remove-orphans || true
+            COMPOSE="docker-compose"
+            if docker compose version >/dev/null 2>&1; then
+              COMPOSE="docker compose"
+            fi
+            echo "=== Logging in to GHCR ==="
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
             echo "=== Pulling latest backend image ==="
-            docker compose pull backend
-            echo "=== Starting all services ==="
-            docker compose up -d
+            $COMPOSE pull backend
+            echo "=== Restarting backend service ==="
+            $COMPOSE up -d backend
             echo "=== Container Status ==="
-            docker compose ps
+            $COMPOSE ps
             echo "=== Backend Logs (last 50 lines) ==="
-            docker compose logs backend --tail=50
+            $COMPOSE logs backend --tail=50
 
 
