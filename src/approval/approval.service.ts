@@ -36,19 +36,6 @@ export class ApprovalService {
       throw new ForbiddenException('权限不足');
     }
 
-    if (user.role === 'SUPER_ADMIN') {
-      return this.prisma.agent.findMany({
-        where: {
-          deletedAt: null,
-        },
-        include: {
-          creator: { select: { username: true, role: true } },
-          organization: { select: { orgName: true } },
-        },
-        orderBy: { updatedAt: 'desc' },
-      });
-    }
-
     const orgId = await this.getCurrentOrgId(user);
 
     if (!orgId) {
