@@ -54,12 +54,16 @@ jobs:
           username: ${{ secrets.REMOTE_USER }}
           password: ${{ secrets.REMOTE_PASSWORD }}
           timeout: 10m
-          command_timeout: 10m
+          command_timeout: 30m
           script: |
             cd /root/K12AgentWeb
-            COMPOSE="docker-compose"
-            if docker compose version >/dev/null 2>&1; then
+            if command -v docker-compose >/dev/null 2>&1; then
+              COMPOSE="docker-compose"
+            elif docker compose version >/dev/null 2>&1; then
               COMPOSE="docker compose"
+            else
+              echo "docker compose is not installed"
+              exit 1
             fi
             echo "=== Logging in to GHCR ==="
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
