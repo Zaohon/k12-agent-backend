@@ -183,34 +183,62 @@ export class KnowledgeService {
     const folder = await this.assertFolderOwner(user.id, id);
     this.assertAutoUploadFolderIsImmutable(folder.name);
 
-    const [childrenCount, fileCount] = await Promise.all([
-      this.prisma.knowledgeFolder.count({
+    const folderIds = await this.collectDescendantFolderIds(user.id, id);
+    const fileIds = (
+      await this.prisma.knowledgeFile.findMany({
         where: {
-          parentId: id,
           ownerId: user.id,
-          deletedAt: null,
+          folderId: { in: folderIds },
+        },
+        select: { id: true },
+      })
+    ).map((file) => file.id);
+
+    await this.prisma.$transaction([
+      this.prisma.messageAttachment.updateMany({
+        where: { knowledgeFileId: { in: fileIds } },
+        data: { knowledgeFileId: null },
+      }),
+      this.prisma.knowledgeFileJob.deleteMany({
+        where: { fileId: { in: fileIds } },
+      }),
+      this.prisma.knowledgeFile.deleteMany({
+        where: {
+          ownerId: user.id,
+          id: { in: fileIds },
         },
       }),
-      this.prisma.knowledgeFile.count({
+      this.prisma.knowledgeFolder.deleteMany({
         where: {
-          folderId: id,
           ownerId: user.id,
-          deletedAt: null,
+          id: { in: folderIds },
         },
       }),
     ]);
+  }
 
-    if (childrenCount > 0 || fileCount > 0) {
-      throw new BadRequestException('Folder is not empty');
+  private async collectDescendantFolderIds(userId: number, rootFolderId: number) {
+    const folderIds = [rootFolderId];
+    const queue = [rootFolderId];
+
+    while (queue.length > 0) {
+      const currentBatch = queue.splice(0, queue.length);
+      const children = await this.prisma.knowledgeFolder.findMany({
+        where: {
+          ownerId: userId,
+          parentId: { in: currentBatch },
+          deletedAt: null,
+        },
+        select: { id: true },
+      });
+
+      for (const child of children) {
+        folderIds.push(child.id);
+        queue.push(child.id);
+      }
     }
 
-    await this.prisma.knowledgeFolder.update({
-      where: { id },
-      data: {
-        status: 'DELETED',
-        deletedAt: new Date(),
-      },
-    });
+    return folderIds;
   }
 
   async listFiles(user: any, query: { folderId?: number; keyword?: string }) {
