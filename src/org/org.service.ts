@@ -138,11 +138,23 @@ export class OrgService {
       throw new ForbiddenException('权限不足');
     }
 
-    return this.prisma.user.findMany({
+    const users = await this.prisma.user.findMany({
       where: { orgId },
       orderBy: { role: 'asc' },
-      select: { id: true, username: true, role: true, createdAt: true },
+      select: {
+        id: true,
+        username: true,
+        role: true,
+        tokenLimit: true,
+        consumedToken: true,
+        createdAt: true,
+      },
     });
+
+    return users.map((user) => ({
+      ...user,
+      remainingTokens: user.tokenLimit - user.consumedToken,
+    }));
   }
 
   async batchCreateUsers(currentUser: any, orgId: number, users: any[]) {
