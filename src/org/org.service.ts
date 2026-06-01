@@ -23,7 +23,7 @@ export class OrgService {
     const whereClause: any =
       currentUser.role === 'SCHOOL_ADMIN' ? { id: Number(currentUser.orgId) } : {};
 
-    return this.prisma.organization.findMany({
+    const organizations = await this.prisma.organization.findMany({
       where: whereClause,
       include: {
         _count: {
@@ -35,6 +35,8 @@ export class OrgService {
         },
       },
     });
+
+    return organizations.map((org) => this.serializeOrganization(org));
   }
 
   async createOrganization(currentUser: any, orgName: string) {
@@ -69,8 +71,18 @@ export class OrgService {
         },
       });
 
-      return org;
+      return this.serializeOrganization(org);
     });
+  }
+
+  private serializeOrganization<T extends Record<string, any>>(org: T) {
+    return {
+      ...org,
+      storageQuotaBytes:
+        typeof org.storageQuotaBytes === 'bigint'
+          ? org.storageQuotaBytes.toString()
+          : org.storageQuotaBytes,
+    };
   }
 
   async createOrgAdmin(currentUser: any, orgId: number, userId: number) {
