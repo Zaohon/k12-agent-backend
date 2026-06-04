@@ -27,6 +27,8 @@ jobs:
           context: .
           push: true
           tags: ghcr.io/zaohon/k12-agent-backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   # ─── Step 2: Upload docker-compose.yml, then SSH to pull & restart ───
   deploy:
