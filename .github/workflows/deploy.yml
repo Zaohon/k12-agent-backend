@@ -63,6 +63,7 @@ jobs:
           timeout: 10m
           command_timeout: 30m
           script: |
+            set -e
             cd /root/K12AgentWeb
             echo "=== Using image registry: ghcr.nju.edu.cn ==="
             if docker compose version >/dev/null 2>&1; then
@@ -78,8 +79,10 @@ jobs:
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login "ghcr.nju.edu.cn" -u "${{ github.actor }}" --password-stdin
             echo "=== Pulling latest backend image ==="
             $COMPOSE pull backend
+            echo "=== Removing stale backend container if it exists ==="
+            docker rm -f k12agentweb-backend-1 2>/dev/null || true
             echo "=== Restarting backend service ==="
-            $COMPOSE up -d --no-deps backend
+            $COMPOSE up -d --no-deps --force-recreate backend
             echo "=== Container Status ==="
             $COMPOSE ps
             echo "=== Backend Logs (last 50 lines) ==="
