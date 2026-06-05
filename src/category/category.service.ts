@@ -288,9 +288,12 @@ export class CategoryService implements OnModuleInit {
       throw new ForbiddenException('仅超级管理员或组织管理员可创建分类');
     }
 
-    const categoryOrgId =
-      currentUser.role === 'SUPER_ADMIN' ? (data.orgId ?? null) : (currentUser.orgId ?? null);
+    const categoryOrgId = await this.getEffectiveOrgId(currentUser);
     const categoryName = String(data.name || '').trim();
+
+    if (!categoryOrgId) {
+      throw new ForbiddenException('当前账号未绑定组织，无法创建分类');
+    }
 
     if (!categoryName) {
       throw new BadRequestException('分类名称不能为空');
