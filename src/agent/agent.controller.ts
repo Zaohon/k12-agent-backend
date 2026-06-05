@@ -111,24 +111,32 @@ ${rawText}`;
    *
    * Request body:
    *   systemPrompt  (required) — the agent's system prompt
-   *   userMessage   (required) — the user's test message
+   *   userMessage   (required unless messages contains at least one user message) — the user's test message
+   *   messages      (optional) — previous debug messages, supports user/assistant roles
    */
   @Post('debug')
   async debugAgent(@Req() req: any, @Res() res: Response, @Body() body: any) {
     const systemPrompt = body?.systemPrompt;
     const userMessage = body?.userMessage;
+    const historyMessages = this.normalizeDebugMessages(body?.messages);
 
     if (!systemPrompt || typeof systemPrompt !== 'string' || !systemPrompt.trim()) {
       throw new BadRequestException('systemPrompt 不能为空');
     }
-    if (!userMessage || typeof userMessage !== 'string' || !userMessage.trim()) {
+    if (
+      (!userMessage || typeof userMessage !== 'string' || !userMessage.trim()) &&
+      !historyMessages.some((message) => message.role === 'user')
+    ) {
       throw new BadRequestException('userMessage 不能为空');
     }
 
     const messages: LlmMessage[] = [
       { role: 'system', content: systemPrompt.trim() },
-      { role: 'user', content: userMessage.trim() },
+      ...historyMessages,
     ];
+    if (typeof userMessage === 'string' && userMessage.trim()) {
+      messages.push({ role: 'user', content: userMessage.trim() });
+    }
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
     res.setHeader('Cache-Control', 'no-cache');
@@ -164,5 +172,31 @@ ${rawText}`;
     }
 
     return content.trim();
+  }
+
+  private normalizeDebugMessages(messages: unknown): LlmMessage[] {
+    if (messages === undefined || messages === null) {
+      return [];
+    }
+    if (!Array.isArray(messages)) {
+      throw new BadRequestException('messages 必须是数组');
+    }
+
+    return messages
+      .map((message) => {
+        const role = (message as any)?.role;
+        const content = (message as any)?.content;
+        if (role !== 'user' && role !== 'assistant') {
+          return null;
+        }
+        if (typeof content !== 'string' || !content.trim()) {
+          return null;
+        }
+        return {
+          role,
+          content: content.trim(),
+        };
+      })
+      .filter((message): message is LlmMessage => message !== null);
   }
 }
