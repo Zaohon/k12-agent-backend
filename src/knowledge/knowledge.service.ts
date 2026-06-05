@@ -4,6 +4,8 @@ import { OssService } from '../oss/oss.service';
 import { extname } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { AUTO_UPLOAD_FOLDER_NAME } from './knowledge-defaults';
+import { PDFParse } from 'pdf-parse';
+import mammoth from 'mammoth';
 
 export interface ChatAttachmentInput {
   fileId?: number;
@@ -468,7 +470,7 @@ export class KnowledgeService {
 
     try {
       const buffer = await this.ossService.getBuffer(file.ossKey);
-      const parsedText = this.extractTextFromFile(buffer, file.name, file.ext, file.mimeType);
+      const parsedText = await this.extractTextFromFile(buffer, file.name, file.ext, file.mimeType);
 
       if (!parsedText.trim()) {
         throw new Error('Parsed text is empty');
@@ -825,9 +827,18 @@ export class KnowledgeService {
     return ext || null;
   }
 
-  private extractTextFromFile(buffer: Buffer, fileName: string, ext?: string | null, mimeType?: string | null) {
+  private async extractTextFromFile(
+    buffer: Buffer,
+    fileName: string,
+    ext?: string | null,
+    mimeType?: string | null,
+  ) {
     const normalizedExt = String(ext || this.extractExt(fileName) || '').toLowerCase();
     const normalizedMime = String(mimeType || '').toLowerCase();
+    const isPdf = normalizedExt === 'pdf' || normalizedMime === 'application/pdf';
+    const isDocx =
+      normalizedExt === 'docx' ||
+      normalizedMime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
     const isInlineMimeType =
       normalizedMime.startsWith('text/') ||
       normalizedMime === 'application/json' ||
@@ -843,6 +854,21 @@ export class KnowledgeService {
 
     if (KnowledgeService.INLINE_PARSE_EXTS.has(normalizedExt) || isInlineMimeType) {
       return buffer.toString('utf8').replace(/\u0000/g, '').trim();
+    }
+
+    if (isPdf) {
+      const parser = new PDFParse({ data: buffer });
+      try {
+        const result = await parser.getText();
+        return String(result.text || '').replace(/\u0000/g, '').trim();
+      } finally {
+        await parser.destroy();
+      }
+    }
+
+    if (isDocx) {
+      const result = await mammoth.extractRawText({ buffer });
+      return String(result.value || '').replace(/\u0000/g, '').trim();
     }
 
     throw new Error(`Unsupported file type for inline parsing: ${normalizedExt || normalizedMime || fileName}`);
