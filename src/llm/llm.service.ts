@@ -380,10 +380,10 @@ export class LlmService {
 
   private extractResponsesReasoningDelta(payload: any): string {
     const type = String(payload?.type || '');
-    if (!type.includes('reasoning')) {
+    if (!type.includes('reasoning') || !type.endsWith('.delta')) {
       return '';
     }
-    return String(payload?.delta || payload?.text || payload?.summary_text || payload?.content || '');
+    return String(payload?.delta || '');
   }
 
   private consumeSseBuffer(buffer: string, onPayload: (payload: any) => void) {
