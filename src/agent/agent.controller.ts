@@ -182,21 +182,23 @@ ${rawText}`;
       throw new BadRequestException('messages 必须是数组');
     }
 
-    return messages
-      .map((message) => {
+    const normalized: LlmMessage[] = [];
+
+    for (const message of messages) {
         const role = (message as any)?.role;
         const content = (message as any)?.content;
         if (role !== 'user' && role !== 'assistant') {
-          return null;
+          continue;
         }
         if (typeof content !== 'string' || !content.trim()) {
-          return null;
+          continue;
         }
-        return {
+        normalized.push({
           role,
           content: content.trim(),
-        };
-      })
-      .filter((message): message is LlmMessage => message !== null);
+        });
+    }
+
+    return normalized;
   }
 }

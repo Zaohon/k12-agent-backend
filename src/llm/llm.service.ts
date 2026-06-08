@@ -4,9 +4,13 @@ import { PrismaService } from '../prisma.service';
 
 type SupportedRole = 'system' | 'developer' | 'user' | 'assistant';
 
+export type LlmContentPart =
+  | { type: 'text'; text: string }
+  | { type: 'image_url'; image_url: { url: string } };
+
 export interface LlmMessage {
   role: SupportedRole;
-  content: string;
+  content: string | LlmContentPart[];
 }
 
 export interface AgentLlmConfig {
@@ -59,7 +63,7 @@ export class LlmService {
   ): Promise<StreamResult> {
     const runtimeConfig = await this.resolveRuntimeConfig(context?.orgId);
     const model = this.resolveModel(agent, modelOverride, runtimeConfig);
-    const useResponses = this.shouldUseResponses(agent, model, runtimeConfig);
+    const useResponses = !this.hasMultimodalContent(messages) && this.shouldUseResponses(agent, model, runtimeConfig);
     const upstreamResponse = await (useResponses
       ? this.fetchResponses(messages, model, true, runtimeConfig, agent)
       : this.fetchChatCompletions(messages, model, true, runtimeConfig));
@@ -83,7 +87,7 @@ export class LlmService {
   ): Promise<CompletionResult> {
     const runtimeConfig = await this.resolveRuntimeConfig(context?.orgId);
     const model = this.resolveModel(agent, modelOverride, runtimeConfig);
-    const useResponses = this.shouldUseResponses(agent, model, runtimeConfig);
+    const useResponses = !this.hasMultimodalContent(messages) && this.shouldUseResponses(agent, model, runtimeConfig);
     const upstreamResponse = await (useResponses
       ? this.fetchResponses(messages, model, false, runtimeConfig, agent)
       : this.fetchChatCompletions(messages, model, false, runtimeConfig));
@@ -117,6 +121,10 @@ export class LlmService {
 
   private supportsResponsesCapabilities(model: string): boolean {
     return LlmService.RESPONSE_MODEL_PREFIXES.some((prefix) => model.startsWith(prefix));
+  }
+
+  private hasMultimodalContent(messages: LlmMessage[]): boolean {
+    return messages.some((message) => Array.isArray(message.content));
   }
 
   private resolveModel(
@@ -221,7 +229,7 @@ export class LlmService {
       model,
       input: messages.map((message) => ({
         role: message.role,
-        content: String(message.content || ''),
+        content: this.stringifyMessageContent(message.content),
       })),
       stream,
       store: false,
@@ -257,6 +265,21 @@ export class LlmService {
     }
 
     return Array.from(toolTypes).map((type) => ({ type }));
+  }
+
+  private stringifyMessageContent(content: LlmMessage['content']) {
+    if (typeof content === 'string') {
+      return content;
+    }
+
+    return content
+      .map((part) => {
+        if (part.type === 'text') {
+          return part.text;
+        }
+        return `[Image] ${part.image_url.url}`;
+      })
+      .join('\n');
   }
 
   private async pipeChatCompletionsStream(

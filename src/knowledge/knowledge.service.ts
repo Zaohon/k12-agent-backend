@@ -367,6 +367,8 @@ export class KnowledgeService {
 
     const ext = this.extractExt(name);
     const size = this.normalizeFileSize(body?.size);
+    const mimeType = body?.mimeType?.trim() || null;
+    const isImage = this.isImageFile(name, ext, mimeType);
 
     const file = await this.prisma.knowledgeFile.create({
       data: {
@@ -374,24 +376,28 @@ export class KnowledgeService {
         ownerId: user.id,
         name,
         ext,
-        mimeType: body?.mimeType?.trim() || null,
+        mimeType,
         size,
         ossKey,
         url: body?.url?.trim() || this.ossService.getPublicUrl(ossKey),
         status: 'UPLOADED',
-        parseStatus: 'PENDING',
+        parseStatus: isImage ? 'SUCCESS' : 'PENDING',
+        parsedAt: isImage ? new Date() : undefined,
+        parseError: null,
       },
     });
 
-    await this.prisma.knowledgeFileJob.create({
-      data: {
-        fileId: file.id,
-        jobType: 'PARSE',
-        status: 'PENDING',
-      },
-    });
+    if (!isImage) {
+      await this.prisma.knowledgeFileJob.create({
+        data: {
+          fileId: file.id,
+          jobType: 'PARSE',
+          status: 'PENDING',
+        },
+      });
 
-    void this.parseKnowledgeFile(file.id, { expectedOwnerId: user.id }).catch(() => undefined);
+      void this.parseKnowledgeFile(file.id, { expectedOwnerId: user.id }).catch(() => undefined);
+    }
 
     return file;
   }
@@ -416,7 +422,10 @@ export class KnowledgeService {
 
     for (const fileId of fileIds) {
       let file = fileMap.get(fileId)!;
-      if (file.parseStatus !== 'SUCCESS' || !file.parsedText?.trim()) {
+      if (
+        !this.isImageFile(file.name, file.ext, file.mimeType) &&
+        (file.parseStatus !== 'SUCCESS' || !file.parsedText?.trim())
+      ) {
         file = await this.parseKnowledgeFile(file.id, { expectedOwnerId: user.id });
       }
       resolvedFiles.push(file);
@@ -440,6 +449,22 @@ export class KnowledgeService {
 
     if (!file) {
       throw new NotFoundException('File not found');
+    }
+
+    if (this.isImageFile(file.name, file.ext, file.mimeType)) {
+      if (!options?.force && file.parseStatus === 'SUCCESS') {
+        return file;
+      }
+
+      return this.prisma.knowledgeFile.update({
+        where: { id: file.id },
+        data: {
+          parseStatus: 'SUCCESS',
+          parsedText: null,
+          parsedAt: new Date(),
+          parseError: null,
+        },
+      });
     }
 
     if (!options?.force && file.parseStatus === 'SUCCESS' && file.parsedText?.trim()) {
@@ -872,6 +897,15 @@ export class KnowledgeService {
     }
 
     throw new Error(`Unsupported file type for inline parsing: ${normalizedExt || normalizedMime || fileName}`);
+  }
+
+  isImageFile(fileName?: string | null, ext?: string | null, mimeType?: string | null) {
+    const normalizedExt = String(ext || (fileName ? this.extractExt(fileName) : '') || '').toLowerCase();
+    const normalizedMime = String(mimeType || '').toLowerCase();
+    return (
+      ['jpg', 'jpeg', 'png', 'webp'].includes(normalizedExt) ||
+      ['image/jpeg', 'image/png', 'image/webp'].includes(normalizedMime)
+    );
   }
 
   private buildObjectKey(userId: number, fileName: string) {

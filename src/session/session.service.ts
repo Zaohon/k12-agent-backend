@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import type { Response } from 'express';
 import { PrismaService } from '../prisma.service';
-import { LlmService, type AgentLlmConfig, type LlmMessage } from '../llm/llm.service';
+import { LlmService, type AgentLlmConfig, type LlmContentPart, type LlmMessage } from '../llm/llm.service';
 import { KnowledgeService, type ChatAttachmentInput } from '../knowledge/knowledge.service';
 
 @Injectable()
@@ -139,6 +139,9 @@ export class SessionService {
               select: {
                 id: true,
                 name: true,
+                ext: true,
+                mimeType: true,
+                url: true,
                 parsedText: true,
                 parseStatus: true,
               },
@@ -194,7 +197,7 @@ export class SessionService {
 
     messages.push({
       role: 'user',
-      content: this.buildUserMessageContent(text, attachedFiles),
+      content: this.buildUserLlmMessageContent(text, attachedFiles),
     });
 
     res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
@@ -309,14 +312,64 @@ export class SessionService {
       Array.isArray(message.attachments) && message.attachments.length > 0
         ? message.attachments
             .map((attachment: any) => attachment.knowledgeFile)
-            .filter((file: any) => file?.parsedText?.trim())
+            .filter(
+              (file: any) =>
+                file?.parsedText?.trim() || this.knowledgeService.isImageFile(file?.name, file?.ext, file?.mimeType),
+            )
         : [];
 
     if (message.role === 'user') {
-      return this.buildUserMessageContent(text, attachmentFiles);
+      return this.buildUserLlmMessageContent(text, attachmentFiles);
     }
 
     return text;
+  }
+
+  private buildUserLlmMessageContent(
+    text: string,
+    attachedFiles: Array<{
+      name?: string | null;
+      ext?: string | null;
+      mimeType?: string | null;
+      parsedText?: string | null;
+      url?: string | null;
+    }>,
+  ) {
+    const question = String(text || '').trim();
+    const textFiles = attachedFiles.filter((file) => file?.parsedText?.trim());
+    const imageFiles = attachedFiles.filter(
+      (file) => this.knowledgeService.isImageFile(file.name, file.ext, file.mimeType) && file.url,
+    );
+
+    if (textFiles.length === 0 && imageFiles.length === 0) {
+      return question || SessionService.ATTACHMENT_MESSAGE_PLACEHOLDER;
+    }
+
+    const promptHeader = question ? `User question: ${question}` : 'Please analyze the uploaded attachments.';
+    const attachmentContext = textFiles
+      .map((file, index) => {
+        const parsedText = String(file.parsedText || '').trim().slice(0, SessionService.ATTACHMENT_TEXT_LIMIT);
+        return `Attachment ${index + 1}: ${file.name || `file-${index + 1}`}\n${parsedText}`;
+      })
+      .join('\n\n');
+
+    const textContent = textFiles.length > 0
+      ? `${promptHeader}\n\nAttachment text content:\n${attachmentContext}`
+      : question || 'Please analyze the uploaded image.';
+
+    if (imageFiles.length === 0) {
+      return textContent;
+    }
+
+    const contentParts: LlmContentPart[] = [{ type: 'text', text: textContent }];
+    for (const image of imageFiles.slice(0, 8)) {
+      contentParts.push({
+        type: 'image_url',
+        image_url: { url: image.url! },
+      });
+    }
+
+    return contentParts;
   }
 
   private buildUserMessageContent(
