@@ -201,13 +201,18 @@ export class SessionService {
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
 
-    const { fullResponse } = await this.llmService.streamToSse(messages, res, agentForLlm, model, {
+    const { fullResponse, fullReasoning } = await this.llmService.streamToSse(messages, res, agentForLlm, model, {
       orgId: user.orgId,
     });
 
     if (fullResponse) {
       await this.prisma.message.create({
-        data: { convId: sessionId, role: 'assistant', content: fullResponse },
+        data: {
+          convId: sessionId,
+          role: 'assistant',
+          content: fullResponse,
+          reasoningContent: fullReasoning || null,
+        },
       });
 
       const consumed = storedUserContent.length + fullResponse.length;

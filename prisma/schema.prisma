@@ -178,6 +178,7 @@ model Message {
   convId           Int       @map("conversation_id")
   role             String    @db.VarChar(32)
   content          String    @db.LongText
+  reasoningContent String?   @map("reasoning_content") @db.LongText
   promptTokens     Int       @default(0) @map("prompt_tokens")
   completionTokens Int       @default(0) @map("completion_tokens")
   createdAt        DateTime  @default(now()) @map("created_at")

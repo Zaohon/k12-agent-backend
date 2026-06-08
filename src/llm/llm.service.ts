@@ -29,6 +29,7 @@ interface LlmRuntimeConfig {
 
 interface StreamResult {
   fullResponse: string;
+  fullReasoning: string;
 }
 
 interface CompletionResult {
@@ -66,7 +67,7 @@ export class LlmService {
     if (!upstreamResponse.ok || !upstreamResponse.body) {
       const errorText = await upstreamResponse.text().catch(() => 'LLM request failed');
       this.writeErrorChunk(res, upstreamResponse.status, errorText);
-      return { fullResponse: '' };
+      return { fullResponse: '', fullReasoning: '' };
     }
 
     return useResponses
@@ -266,6 +267,7 @@ export class LlmService {
     const decoder = new TextDecoder();
     let buffer = '';
     let fullResponse = '';
+    let fullReasoning = '';
 
     while (true) {
       const { done, value } = await reader.read();
@@ -273,6 +275,11 @@ export class LlmService {
 
       buffer += decoder.decode(value, { stream: true });
       const parsed = this.consumeSseBuffer(buffer, (payload) => {
+        const reasoning = payload?.choices?.[0]?.delta?.reasoning_content || payload?.reasoning_content || '';
+        if (reasoning) {
+          fullReasoning += reasoning;
+          this.writeReasoningChunk(res, reasoning);
+        }
         const delta = payload?.choices?.[0]?.delta?.content || payload?.content || '';
         if (delta) {
           fullResponse += delta;
@@ -284,6 +291,11 @@ export class LlmService {
 
     if (buffer.trim()) {
       this.consumeSseBuffer(buffer, (payload) => {
+        const reasoning = payload?.choices?.[0]?.delta?.reasoning_content || payload?.reasoning_content || '';
+        if (reasoning) {
+          fullReasoning += reasoning;
+          this.writeReasoningChunk(res, reasoning);
+        }
         const delta = payload?.choices?.[0]?.delta?.content || payload?.content || '';
         if (delta) {
           fullResponse += delta;
@@ -293,7 +305,7 @@ export class LlmService {
     }
 
     this.writeDoneChunk(res);
-    return { fullResponse };
+    return { fullResponse, fullReasoning };
   }
 
   private async pipeResponsesStream(
@@ -304,6 +316,7 @@ export class LlmService {
     const decoder = new TextDecoder();
     let buffer = '';
     let fullResponse = '';
+    let fullReasoning = '';
 
     while (true) {
       const { done, value } = await reader.read();
@@ -311,6 +324,11 @@ export class LlmService {
 
       buffer += decoder.decode(value, { stream: true });
       const parsed = this.consumeSseBuffer(buffer, (payload) => {
+        const reasoning = this.extractResponsesReasoningDelta(payload);
+        if (reasoning) {
+          fullReasoning += reasoning;
+          this.writeReasoningChunk(res, reasoning);
+        }
         if (payload?.type === 'response.output_text.delta' && payload?.delta) {
           fullResponse += payload.delta;
           this.writeDeltaChunk(res, payload.delta);
@@ -321,6 +339,11 @@ export class LlmService {
 
     if (buffer.trim()) {
       this.consumeSseBuffer(buffer, (payload) => {
+        const reasoning = this.extractResponsesReasoningDelta(payload);
+        if (reasoning) {
+          fullReasoning += reasoning;
+          this.writeReasoningChunk(res, reasoning);
+        }
         if (payload?.type === 'response.output_text.delta' && payload?.delta) {
           fullResponse += payload.delta;
           this.writeDeltaChunk(res, payload.delta);
@@ -329,7 +352,15 @@ export class LlmService {
     }
 
     this.writeDoneChunk(res);
-    return { fullResponse };
+    return { fullResponse, fullReasoning };
+  }
+
+  private extractResponsesReasoningDelta(payload: any): string {
+    const type = String(payload?.type || '');
+    if (!type.includes('reasoning')) {
+      return '';
+    }
+    return String(payload?.delta || payload?.text || payload?.summary_text || payload?.content || '');
   }
 
   private consumeSseBuffer(buffer: string, onPayload: (payload: any) => void) {
@@ -386,6 +417,15 @@ export class LlmService {
     res.write(
       `data: ${JSON.stringify({
         choices: [{ delta: { content: delta } }],
+      })}\n\n`,
+    );
+  }
+
+  private writeReasoningChunk(res: ExpressResponse, delta: string) {
+    res.write(
+      `data: ${JSON.stringify({
+        type: 'reasoning_delta',
+        delta,
       })}\n\n`,
     );
   }
